@@ -23,17 +23,15 @@ bool clw::Queue::enqueueKernel(const Kernel &kernel) noexcept {
 
 
 bool clw::Queue::enqueueNDRK(
-    const Kernel &kernel, uint32_t workDim,
-    const size_t *globalWorkOffset,
+    const Kernel &kernel,
     const size_t *globalWorkSize,
+    uint32_t workDim,
+    const size_t *globalWorkOffset,
     const size_t *localWorkSize) noexcept
 {
     int err;
-    size_t x = 1;
-    globalWorkSize = &x;
     err = clEnqueueNDRangeKernel(_queue, kernel.getKernel(), workDim,
             globalWorkOffset, globalWorkSize, localWorkSize,
-            // globalWorkOffset, &x, localWorkSize,
             0, nullptr, nullptr);
     if (err < 0) {
         return false;
