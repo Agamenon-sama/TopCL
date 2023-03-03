@@ -1,4 +1,6 @@
 #include <iostream>
+#include <vector>
+#include <cmath>
 
 #include <assert.h>
 
@@ -23,13 +25,20 @@ static float B12[16] = { 2, -3,  4, -9,   -3,  2,  9, -2,    4,  9,  2,  3,   -9
 float* horizontalConcat4x4Mat(const float *a, const float *b);
 float* verticalConcat8x4Mat(const float *a, const float *b);
 float* calculateKE(const clw::Env &clenv, clw::Queue &queue);
+std::vector<float> makeVector(float first, float last, uint8_t step = 1);
+float* reshape(const std::vector<float> &vec, int numOfRows, int numOfColumns);
 
 int main(int argc, char *argv[]) {
     clw::Env clenv;
     clw::Queue queue(clenv);
 
+    int nelx = 10, nely = 5;
+
     float *KE = calculateKE(clenv, queue);
     delete[] KE;
+
+    float *nodenrs = reshape(makeVector(1, (1+nelx)*(1+nely)), 1+nely, 1+nelx);
+    delete[] nodenrs;
 
     return 0;
 }
@@ -110,5 +119,43 @@ float* calculateKE(const clw::Env &clenv, clw::Queue &queue) {
 
     delete[] b;
     return a; // a must be deleted by caller
+}
+
+std::vector<float> makeVector(float first, float last, uint8_t step) {
+    assert(step >= 1);
+    if (first >= last) {
+        std::swap(first, last);
+    }
+    size_t size = std::ceil((last - first + 1) / step);
+    std::vector<float> vec(size);
+    
+    for (int i = 0, value = first; i < vec.size(); i++, value += step) {
+        vec[i] = value;
+    }
+    std::cout << "\n";
+
+    return vec;
+}
+
+float* reshape(const std::vector<float> &vec, int numOfRows, int numOfColumns) {
+    float *result = new float[numOfRows * numOfColumns];
+    for (int y = 0; y < numOfRows; y++) {
+        for (int x = 0; x < numOfColumns; x++) {
+            result[y * numOfColumns + x] =  vec[x * numOfRows + y];
+        }
+    }
+
+    int y = 0;
+    for (int i = 0; i < numOfRows * numOfColumns; i++) {
+        std::cout << result[i] << "  ";
+        y++;
+        if (y == numOfColumns) {
+            std::cout << "\n";
+            y = 0;
+        }
+    }
+    std::cout << "\n";
+
+    return result; // caller must delete
 }
 
