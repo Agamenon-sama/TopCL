@@ -26,7 +26,6 @@ float* calculateKE(const clw::Env &clenv, clw::Queue &queue);
 
 int main(int argc, char *argv[]) {
     clw::Env clenv;
-    // clw::Kernel kernel(clenv, "../res/kernels/ker.cl", "ker");
     clw::Queue queue(clenv);
 
     float *KE = calculateKE(clenv, queue);
@@ -62,8 +61,6 @@ float* verticalConcat8x4Mat(const float *a, const float *b) {
 }
 
 float* calculateKE(const clw::Env &clenv, clw::Queue &queue) {
-    float coefficient = (1/(1-(nu*nu)))/24;
-
     // [A11 A12;A12 A11]
     float *a1 = horizontalConcat4x4Mat(A11, A12);
     float *a2 = horizontalConcat4x4Mat(A12, A11); // A12 should be transposed but it's symmetric so ¯\_(ツ)_/¯ 
@@ -75,6 +72,31 @@ float* calculateKE(const clw::Env &clenv, clw::Queue &queue) {
     float *b2 = horizontalConcat4x4Mat(B12, B11); // same as A12
     float *b  = verticalConcat8x4Mat(b1, b2);
     delete[] b1; delete[] b2;
+
+    // create buffers
+    clw::MemBuffer nuBuffer(clenv, clw::MemType::ReadBuffer, sizeof(float), &nu);
+    clw::MemBuffer aMatrixBuffer(clenv, clw::MemType::ReadBuffer, sizeof(float) * 8*8, a);
+    clw::MemBuffer bMatrixBuffer(clenv, clw::MemType::ReadBuffer, sizeof(float) * 8*8, b);
+    clw::MemBuffer resultMatrixBuffer(clenv, clw::MemType::WriteBuffer, sizeof(float) * 8*8);
+
+    // set up kernel
+    bool err;
+    clw::Kernel kernel(clenv, "../res/kernels/calculate_ke.cl", "calculateKE");
+    err = kernel.setKernelArg(0, nuBuffer);
+    assert(err == true);
+    err = kernel.setKernelArg(1, aMatrixBuffer);
+    assert(err == true);
+    err = kernel.setKernelArg(2, bMatrixBuffer);
+    assert(err == true);
+    err = kernel.setKernelArg(3, resultMatrixBuffer);
+    assert(err == true);
+
+    size_t workSize = 16;
+    err = queue.enqueueNDRK(kernel, &workSize);
+    assert(err == true);
+    err = queue.enqueueReadCommand(resultMatrixBuffer, sizeof(float) * 8*8, a);
+    assert(err == true);
+
     int y = 0;
     for (int i = 0; i < 8*8; i++) {
         std::cout << a[i] << "  ";
@@ -86,92 +108,7 @@ float* calculateKE(const clw::Env &clenv, clw::Queue &queue) {
     }
     std::cout << "\n";
 
-    // nu*[B11 B12;B12 B11]
-    clw::MemBuffer nuBuffer(clenv, clw::MemType::ReadBuffer, sizeof(float), &nu);
-    clw::MemBuffer bMatrixBuffer(clenv, clw::MemType::ReadBuffer, sizeof(float) * 8*8, b);
-    clw::MemBuffer bResMatrixBuffer(clenv, clw::MemType::WriteBuffer, sizeof(float) * 8*8);
-    bool err;
-    clw::Kernel multKernel(clenv, "../res/kernels/scalar_matrix_mult.cl", "scalarMatrixMult");
-    err = multKernel.setKernelArg(0, nuBuffer);
-    assert(err == true);
-    err = multKernel.setKernelArg(1, bMatrixBuffer);
-    assert(err == true);
-    err = multKernel.setKernelArg(2, bResMatrixBuffer);
-    assert(err == true);
-
-    size_t workUnits = 16;
-    err = queue.enqueueNDRK(multKernel, &workUnits);
-    assert(err == true);
-    err = queue.enqueueReadCommand(bResMatrixBuffer, sizeof(float) * 8*8, b);
-    assert(err == true);
-
-    y = 0;
-    for (int i = 0; i < 8*8; i++) {
-        std::cout << b[i] << "  ";
-        y++;
-        if (y == 8) {
-            std::cout << "\n";
-            y = 0;
-        }
-    }
-    std::cout << "\n";
-
-    // [A11 A12;A12' A11]+nu*[B11 B12;B12 B11]
-    clw::MemBuffer aMatrixBuffer(clenv, clw::MemType::ReadBuffer, sizeof(float) * 8*8, a);
-    clw::MemBuffer bMatrixBuffer2(clenv, clw::MemType::ReadBuffer, sizeof(float) * 8*8, b);
-    clw::Kernel addKernel(clenv, "../res/kernels/matrix_matrix_add.cl", "matrixMatrixAdd");
-    err = addKernel.setKernelArg(0, aMatrixBuffer);
-    assert(err == true);
-    err = addKernel.setKernelArg(1, bMatrixBuffer2);
-    assert(err == true);
-    err = addKernel.setKernelArg(2, bResMatrixBuffer);
-    assert(err == true);
-
-    err = queue.enqueueNDRK(addKernel, &workUnits);
-    assert(err == true);
-    err = queue.enqueueReadCommand(bResMatrixBuffer, sizeof(float) * 8*8, b);
-    assert(err == true);
-
-    y = 0;
-    for (int i = 0; i < 8*8; i++) {
-        std::cout << b[i] << "  ";
-        y++;
-        if (y == 8) {
-            std::cout << "\n";
-            y = 0;
-        }
-    }
-    std::cout << "\n";
-
-    // 1/(1-nu^2)/24*([A11 A12;A12' A11]+nu*[B11 B12;B12 B11])
-    clw::MemBuffer coefficientBuffer(clenv, clw::MemType::ReadBuffer, sizeof(float), &coefficient);
-    clw::MemBuffer matrixBuffer(clenv, clw::MemType::ReadBuffer, sizeof(float) * 8*8, b);
-    clw::MemBuffer finalResultBuffer(clenv, clw::MemType::WriteBuffer, sizeof(float) * 8*8);
-    err = multKernel.setKernelArg(0, coefficientBuffer);
-    assert(err == true);
-    err = multKernel.setKernelArg(1, matrixBuffer);
-    assert(err == true);
-    err = multKernel.setKernelArg(2, finalResultBuffer);
-    assert(err == true);
-
-    err = queue.enqueueNDRK(multKernel, &workUnits);
-    assert(err == true);
-    err = queue.enqueueReadCommand(finalResultBuffer, sizeof(float) * 8*8, b);
-    assert(err == true);
-
-    delete[] a;
-
-    std::cout << "KE =\n";
-    y = 0;
-    for (int i = 0; i < 8*8; i++) {
-        std::cout << b[i] << "  ";
-        y++;
-        if (y == 8) {
-            std::cout << "\n";
-            y = 0;
-        }
-    }
-    std::cout << "\n";
-
-    return b; // caller must delete b
+    delete[] b;
+    return a; // a must be deleted by caller
 }
+
