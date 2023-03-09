@@ -1,14 +1,18 @@
 #include <iostream>
 #include <vector>
 #include <cmath>
+#include <filesystem>
 
 #include <assert.h>
 
+#include "Matrix.h"
 #include "Env.h"
 #include "Kernel.h"
 #include "Queue.h"
 #include "MemBuffer.h"
 
+namespace fs = std::filesystem;
+const fs::path kernelFolder("../res/kernels");
 
 // %% MATERIAL PROPERTIES
 float E0 = 1.f;
@@ -27,6 +31,7 @@ float* verticalConcat8x4Mat(const float *a, const float *b);
 float* calculateKE(const clw::Env &clenv, clw::Queue &queue);
 std::vector<float> makeVector(float first, float last, uint8_t step = 1);
 float* reshape(const std::vector<float> &vec, int numOfRows, int numOfColumns);
+Matrix calculateEdofVec(const clw::Env &clenv, clw::Queue &queue, float *nodenrs, const int numOfRows, const int numOfColumns);
 
 int main(int argc, char *argv[]) {
     clw::Env clenv;
@@ -38,7 +43,9 @@ int main(int argc, char *argv[]) {
     delete[] KE;
 
     float *nodenrs = reshape(makeVector(1, (1+nelx)*(1+nely)), 1+nely, 1+nelx);
+    Matrix edofVec = calculateEdofVec(clenv, queue, nodenrs, nely, nelx);
     delete[] nodenrs;
+
 
     return 0;
 }
@@ -138,6 +145,7 @@ std::vector<float> makeVector(float first, float last, uint8_t step) {
 }
 
 float* reshape(const std::vector<float> &vec, int numOfRows, int numOfColumns) {
+    assert(numOfColumns*numOfRows == vec.size());
     float *result = new float[numOfRows * numOfColumns];
     for (int y = 0; y < numOfRows; y++) {
         for (int x = 0; x < numOfColumns; x++) {
@@ -159,3 +167,71 @@ float* reshape(const std::vector<float> &vec, int numOfRows, int numOfColumns) {
     return result; // caller must delete
 }
 
+void reshape(Matrix &mat, int numOfRows, int numOfColumns) {
+    assert(numOfColumns*numOfRows == mat.width*mat.height);
+    float *result = new float[numOfRows * numOfColumns];
+    for (int c = 0, k = 0; c < mat.width; c++) {
+        for (int r = 0; r < mat.height; r++, k++) {
+            result[k] = mat.data[c + r*mat.width];
+        }
+    }
+    delete[] mat.data;
+    mat.data = result;
+
+    int y = 0;
+    for (int i = 0; i < numOfRows * numOfColumns; i++) {
+        std::cout << result[i] << "  ";
+        y++;
+        if (y == numOfColumns) {
+            std::cout << "\n";
+            y = 0;
+        }
+    }
+    std::cout << "\n";
+}
+
+Matrix calculateEdofVec(const clw::Env &clenv, clw::Queue &queue, float *nodenrs, const int numOfRows, const int numOfColumns) {
+    size_t dataSize = (numOfColumns) * (numOfRows);
+    Matrix result;
+    result.width = numOfColumns;
+    result.height = numOfRows;
+    result.data = new float[dataSize];
+
+    // nodenrs(1:end-1,1:end-1)
+    for (int i = 0; i < numOfRows; i++) {
+        for (int j = 0; j < numOfColumns; j++) {
+            result.data[j + i*numOfColumns] = nodenrs[j+i + i*numOfColumns];
+        }
+    }
+
+    // 2*nodenrs(1:end-1,1:end-1)+1
+    clw::MemBuffer inputBuffer(clenv, clw::MemType::ReadBuffer, sizeof(float) * dataSize, result.data);
+    clw::MemBuffer outputBuffer(clenv, clw::MemType::WriteBuffer, sizeof(float) * dataSize);
+    clw::Kernel kernel(clenv, kernelFolder / "calculate_edofVec.cl", "calculateEdofVec");
+    int err;
+    err = kernel.setKernelArg(0, inputBuffer);
+    assert(err == true);
+    err = kernel.setKernelArg(1, outputBuffer);
+    assert(err == true);
+
+    size_t workSize = dataSize;
+    err = queue.enqueueNDRK(kernel, &workSize);
+    assert(err == true);
+    err = queue.enqueueReadCommand(outputBuffer, sizeof(float) * dataSize, result.data);
+    assert(err == true);
+
+    int y = 0;
+    for (int i = 0; i < dataSize; i++) {
+        std::cout << result.data[i] << "  ";
+        y++;
+        if (y == numOfColumns) {
+            std::cout << "\n";
+            y = 0;
+        }
+    }
+    std::cout << "\n";
+
+    reshape(result, dataSize, 1);
+
+    return result;
+}
