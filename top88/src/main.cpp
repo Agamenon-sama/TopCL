@@ -32,6 +32,7 @@ float* calculateKE(const clw::Env &clenv, clw::Queue &queue);
 std::vector<float> makeVector(float first, float last, uint8_t step = 1);
 float* reshape(const std::vector<float> &vec, int numOfRows, int numOfColumns);
 Matrix calculateEdofVec(const clw::Env &clenv, clw::Queue &queue, float *nodenrs, const int numOfRows, const int numOfColumns);
+Matrix calculateEdofMat(const clw::Env &clenv, clw::Queue &queue, int nely, const Matrix &edofVec);
 
 int main(int argc, char *argv[]) {
     clw::Env clenv;
@@ -44,6 +45,7 @@ int main(int argc, char *argv[]) {
 
     float *nodenrs = reshape(makeVector(1, (1+nelx)*(1+nely)), 1+nely, 1+nelx);
     Matrix edofVec = calculateEdofVec(clenv, queue, nodenrs, nely, nelx);
+    Matrix edofMat = calculateEdofMat(clenv, queue, nely, edofVec);
     delete[] nodenrs;
 
 
@@ -232,6 +234,47 @@ Matrix calculateEdofVec(const clw::Env &clenv, clw::Queue &queue, float *nodenrs
     std::cout << "\n";
 
     reshape(result, dataSize, 1);
+    result.width = 1;
+    result.height = dataSize;
 
     return result;
+}
+
+Matrix calculateEdofMat(const clw::Env &clenv, clw::Queue &queue, int nely, const Matrix &edofVec) {
+    Matrix mat;
+    mat.width = 8;
+    mat.height = edofVec.width * edofVec.height;
+    size_t dataSize = mat.width * mat.height;
+    mat.data = new float[dataSize];
+
+    bool err;
+    clw::Kernel kernel(clenv, kernelFolder / "calculate_edofMat.cl", "calculateEdofMat");
+    clw::MemBuffer nelyBuffer(clenv, clw::MemType::ReadBuffer, sizeof(int), &nely);
+    clw::MemBuffer edofVecBuffer(clenv, clw::MemType::ReadBuffer, sizeof(float) * mat.height, edofVec.data);
+    clw::MemBuffer outputBuffer(clenv, clw::MemType::WriteBuffer, sizeof(float) * dataSize);
+    err = kernel.setKernelArg(0, nelyBuffer);
+    assert(err == true);
+    err = kernel.setKernelArg(1, edofVecBuffer);
+    assert(err == true);
+    err = kernel.setKernelArg(2, outputBuffer);
+    assert(err == true);
+
+    size_t workSize = edofVec.height;
+    err = queue.enqueueNDRK(kernel, &workSize);
+    assert(err == true);
+    err = queue.enqueueReadCommand(outputBuffer, sizeof(float) * dataSize, mat.data);
+    assert(err == true);
+
+    int y = 0;
+    for (int i = 0; i < dataSize; i++) {
+        std::cout << mat.data[i] << "  ";
+        y++;
+        if (y == mat.width) {
+            std::cout << "\n";
+            y = 0;
+        }
+    }
+    std::cout << "\n";
+
+    return mat;
 }
