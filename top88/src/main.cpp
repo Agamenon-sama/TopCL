@@ -35,7 +35,9 @@ int main(int argc, char *argv[]) {
     clw::Queue queue(clenv);
 
     int nelx = 10, nely = 5;
+    float rmin = 1.5f;
 
+    std::cout << "KE =\n";
     float *KE = calculateKE(clenv, queue);
     delete[] KE;
 
@@ -43,6 +45,38 @@ int main(int argc, char *argv[]) {
     Matrix edofVec = calculateEdofVec(clenv, queue, nodenrs, nely, nelx);
     Matrix edofMat = calculateEdofMat(clenv, queue, nely, edofVec);
     delete[] nodenrs;
+
+    // U = zeros(2*(nely+1)*(nelx+1),1);
+    Matrix U = zeros(2*(nely+1)*(nelx+1), 1);
+    std::cout << "U =\n";
+    printMatrix(U);
+
+    // given the nature of the input, the following union can be replaced with a simple insertion
+    // fixeddofs = union([1:2:2*(nely+1)],[2*(nelx+1)*(nely+1)]);
+    std::vector<float> fixeddofs = makeVector(1, 2 * (nely+1), 2);
+    fixeddofs.emplace_back(2 * (nelx+1) * (nely+1));
+    std::cout << "fixeddofs =\n";
+    printMatrix(fixeddofs.data(), fixeddofs.size(), 1);
+
+    // alldofs = [1:2*(nely+1)*(nelx+1)]
+    std::vector<float> freedofs = makeVector(1, 2 * (nely+1) * (nelx+1));
+    std::cout << "alldofs =\n";
+    printMatrix(freedofs.data(), freedofs.size(), 1);
+
+    // freedofs = setdiff(alldofs,fixeddofs);
+    // to avoid copying alldofs, I'm sending it to be modified
+    setdiff(freedofs, fixeddofs);
+    std::cout << "freedofs =\n";
+    printMatrix(freedofs.data(), freedofs.size(), 1);
+
+    // %% PREPARE FILTER
+
+    // iH = ones(nelx*nely*(2*(ceil(rmin)-1)+1)^2,1);
+    Matrix iH = ones(std::pow(nelx * nely * (2 * (std::ceil(rmin) - 1) + 1), 2), 1);
+    // jH = ones(size(iH));
+    Matrix jH = ones(iH.height, iH.width);
+    // sH = zeros(size(iH));
+    Matrix sH = zeros(iH.height, iH.width);
 
 
     return 0;
@@ -70,7 +104,7 @@ float* calculateKE(const clw::Env &clenv, clw::Queue &queue) {
 
     // set up kernel
     bool err;
-    clw::Kernel kernel(clenv, "../res/kernels/calculate_ke.cl", "calculateKE");
+    clw::Kernel kernel(clenv, kernelFolder / "calculate_ke.cl", "calculateKE");
     err = kernel.setKernelArg(0, nuBuffer);
     assert(err == true);
     err = kernel.setKernelArg(1, aMatrixBuffer);

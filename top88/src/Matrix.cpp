@@ -79,7 +79,7 @@ void reshape(Matrix &mat, int numOfRows, int numOfColumns) {
 }
 
 
-Matrix zeros(const int width, const int height) {
+Matrix zeros(const int height, const int width) {
     Matrix mat;
     mat.data = new float[width * height];
     mat.width = width;
@@ -92,7 +92,7 @@ Matrix zeros(const int width, const int height) {
     return mat;
 }
 
-Matrix ones(const int width, const int height) {
+Matrix ones(const int height, const int width) {
     Matrix mat;
     mat.data = new float[width * height];
     mat.width = width;
@@ -128,5 +128,16 @@ void printMatrix(const float *vec, const int width, const int height) {
         }
     }
     std::cout << "\n";
+}
+
+void setdiff(std::vector<float> &a, const std::vector<float> &b) {
+    for (size_t i = 0; i < b.size(); i++) {
+        for (auto it = a.begin(); it != a.end(); it++) {
+            if (*it == b[i]) {
+                a.erase(it);
+                it--;
+            }
+        }
+    }
 }
 
