@@ -86,16 +86,7 @@ float* calculateKE(const clw::Env &clenv, clw::Queue &queue) {
     err = queue.enqueueReadCommand(resultMatrixBuffer, sizeof(float) * 8*8, a);
     assert(err == true);
 
-    int y = 0;
-    for (int i = 0; i < 8*8; i++) {
-        std::cout << a[i] << "  ";
-        y++;
-        if (y == 8) {
-            std::cout << "\n";
-            y = 0;
-        }
-    }
-    std::cout << "\n";
+    printMatrix(a, 8, 8);
 
     delete[] b;
     return a; // a must be deleted by caller
@@ -131,16 +122,7 @@ Matrix calculateEdofVec(const clw::Env &clenv, clw::Queue &queue, float *nodenrs
     err = queue.enqueueReadCommand(outputBuffer, sizeof(float) * dataSize, result.data);
     assert(err == true);
 
-    int y = 0;
-    for (int i = 0; i < dataSize; i++) {
-        std::cout << result.data[i] << "  ";
-        y++;
-        if (y == numOfColumns) {
-            std::cout << "\n";
-            y = 0;
-        }
-    }
-    std::cout << "\n";
+    printMatrix(result);
 
     reshape(result, dataSize, 1);
     result.width = 1;
@@ -174,16 +156,7 @@ Matrix calculateEdofMat(const clw::Env &clenv, clw::Queue &queue, int nely, cons
     err = queue.enqueueReadCommand(outputBuffer, sizeof(float) * dataSize, mat.data);
     assert(err == true);
 
-    int y = 0;
-    for (int i = 0; i < dataSize; i++) {
-        std::cout << mat.data[i] << "  ";
-        y++;
-        if (y == mat.width) {
-            std::cout << "\n";
-            y = 0;
-        }
-    }
-    std::cout << "\n";
+    printMatrix(mat);
 
     return mat;
 }

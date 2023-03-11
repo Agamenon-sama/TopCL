@@ -58,16 +58,7 @@ float* reshape(const std::vector<float> &vec, int numOfRows, int numOfColumns) {
         }
     }
 
-    int y = 0;
-    for (int i = 0; i < numOfRows * numOfColumns; i++) {
-        std::cout << result[i] << "  ";
-        y++;
-        if (y == numOfColumns) {
-            std::cout << "\n";
-            y = 0;
-        }
-    }
-    std::cout << "\n";
+    printMatrix(result, numOfColumns, numOfRows);
 
     return result; // caller must delete
 }
@@ -83,11 +74,55 @@ void reshape(Matrix &mat, int numOfRows, int numOfColumns) {
     delete[] mat.data;
     mat.data = result;
 
+    printMatrix(mat);
+    std::cout << "\n";
+}
+
+
+Matrix zeros(const int width, const int height) {
+    Matrix mat;
+    mat.data = new float[width * height];
+    mat.width = width;
+    mat.height = height;
+
+    for (int i = 0; i < width * height; i++) {
+        mat.data[i] = 0;
+    }
+
+    return mat;
+}
+
+Matrix ones(const int width, const int height) {
+    Matrix mat;
+    mat.data = new float[width * height];
+    mat.width = width;
+    mat.height = height;
+
+    for (int i = 0; i < width * height; i++) {
+        mat.data[i] = 1;
+    }
+
+    return mat;
+}
+
+void printMatrix(const Matrix &mat) {
     int y = 0;
-    for (int i = 0; i < numOfRows * numOfColumns; i++) {
-        std::cout << result[i] << "  ";
+    for (int i = 0; i < mat.height * mat.width; i++) {
+        std::cout << mat.data[i] << "  ";
         y++;
-        if (y == numOfColumns) {
+        if (y == mat.width) {
+            std::cout << "\n";
+            y = 0;
+        }
+    }
+    std::cout << "\n";
+}
+void printMatrix(const float *vec, const int width, const int height) {
+    int y = 0;
+    for (int i = 0; i < height * width; i++) {
+        std::cout << vec[i] << "  ";
+        y++;
+        if (y == width) {
             std::cout << "\n";
             y = 0;
         }
