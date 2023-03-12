@@ -46,6 +46,11 @@ int main(int argc, char *argv[]) {
     Matrix edofMat = calculateEdofMat(clenv, queue, nely, edofVec);
     delete[] nodenrs;
 
+    // F = sparse(2,1,-1,2*(nely+1)*(nelx+1),1);
+    SparseMatrix F({2}, {1}, {-1}, 2*(nely+1)*(nelx+1), 1);
+    std::cout << "F =\n";
+    printSparse(F);
+
     // U = zeros(2*(nely+1)*(nelx+1),1);
     Matrix U = zeros(2*(nely+1)*(nelx+1), 1);
     std::cout << "U =\n";
