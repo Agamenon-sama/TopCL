@@ -25,7 +25,35 @@ struct Matrix {
 
 struct SparseMatrix {
     SparseMatrix(const std::vector<size_t> &rows, const std::vector<size_t> &columns, const std::vector<float> &values,
-        const uint32_t height, const uint32_t width) {
+            const uint32_t height, const uint32_t width) {
+        _construct(rows, columns, values, height, width);
+    }
+
+    SparseMatrix(const Matrix &I, const Matrix &J, const Matrix &SV) {
+        std::vector<size_t> vI(I.height);
+        std::vector<size_t> vJ(J.height);
+        std::vector<float> vSV(SV.height);
+
+        for (size_t i = 0; i < I.height; i++) {
+            vI[i] = I.data[i];
+            vJ[i] = J.data[i];
+            vSV[i] = SV.data[i];
+        }
+
+        // can't use delegate constructor apparently
+        _construct(vI, vJ, vSV, SV.height, SV.height);
+    }
+
+    std::vector<float> values;
+    std::vector<size_t> columns;
+    std::vector<size_t> rowPtrs;
+
+    uint32_t width;
+    uint32_t height;
+
+    private:
+        void _construct(const std::vector<size_t> &rows, const std::vector<size_t> &columns, const std::vector<float> &values,
+            const uint32_t height, const uint32_t width) {
         this->height = height;
         this->width = width;
 
@@ -58,14 +86,7 @@ struct SparseMatrix {
         rowPtrs[height] = nonZeroID;
 
         delete[] mat;
-    }
-
-    std::vector<float> values;
-    std::vector<size_t> columns;
-    std::vector<size_t> rowPtrs;
-
-    uint32_t width;
-    uint32_t height;
+        }
 };
 
 

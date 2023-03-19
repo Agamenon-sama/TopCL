@@ -95,6 +95,11 @@ int main(int argc, char *argv[]) {
     printMatrix(sH);
     std::cout << "\n";
 
+    // H = sparse(iH,jH,sH);
+    SparseMatrix H(iH, jH, sH);
+    std::cout << "H =\n";
+    printSparse(H);
+
 
     return 0;
 }
