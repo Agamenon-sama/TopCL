@@ -29,13 +29,14 @@ static float B12[16] = { 2, -3,  4, -9,   -3,  2,  9, -2,    4,  9,  2,  3,   -9
 float* calculateKE(const clw::Env &clenv, clw::Queue &queue);
 Matrix calculateEdofVec(const clw::Env &clenv, clw::Queue &queue, float *nodenrs, const int numOfRows, const int numOfColumns);
 Matrix calculateEdofMat(const clw::Env &clenv, clw::Queue &queue, int nely, const Matrix &edofVec);
+void crazyLoop(const clw::Env &clenv, clw::Queue &queue, Matrix &iH, Matrix &jH, Matrix &sH, size_t nelx, size_t nely, float rmin);
 
 int main(int argc, char *argv[]) {
     clw::Env clenv;
     clw::Queue queue(clenv);
 
     int nelx = 10, nely = 5;
-    float rmin = 1.5f;
+    float rmin = 0.5f;
 
     std::cout << "KE =\n";
     float *KE = calculateKE(clenv, queue);
@@ -77,11 +78,22 @@ int main(int argc, char *argv[]) {
     // %% PREPARE FILTER
 
     // iH = ones(nelx*nely*(2*(ceil(rmin)-1)+1)^2,1);
-    Matrix iH = ones(std::pow(nelx * nely * (2 * (std::ceil(rmin) - 1) + 1), 2), 1);
+    Matrix iH = ones(nelx * nely * std::pow((2 * (std::ceil(rmin) - 1) + 1), 2), 1);
     // jH = ones(size(iH));
     Matrix jH = ones(iH.height, iH.width);
     // sH = zeros(size(iH));
     Matrix sH = zeros(iH.height, iH.width);
+
+    crazyLoop(clenv, queue, iH, jH, sH, nelx, nely, rmin);
+    std::cout << "iH =\n";
+    printMatrix(iH);
+    std::cout << "\n";
+    std::cout << "jH =\n";
+    printMatrix(jH);
+    std::cout << "\n";
+    std::cout << "sH =\n";
+    printMatrix(sH);
+    std::cout << "\n";
 
 
     return 0;
@@ -198,4 +210,49 @@ Matrix calculateEdofMat(const clw::Env &clenv, clw::Queue &queue, int nely, cons
     printMatrix(mat);
 
     return mat;
+}
+
+void crazyLoop(const clw::Env &clenv, clw::Queue &queue, Matrix &iH, Matrix &jH, Matrix &sH, size_t nelx, size_t nely, float rmin) {
+    // setting which kernel to build and run
+    auto filename = kernelFolder;
+    std::string kernelName;
+    if (std::ceil(rmin) == 1.f) {
+        filename /= "crazyLoop_unrolled1.cl";
+        kernelName = "crazyLoopUnrolled1";
+    }
+    else {
+        filename /= "crazyLoop.cl";
+        kernelName = "crazyLoop";
+    }
+
+    bool err;
+    clw::Kernel kernel(clenv, filename, kernelName);
+    clw::MemBuffer nelxBuffer(clenv, clw::MemType::ReadBuffer, sizeof(int), &nelx);
+    clw::MemBuffer nelyBuffer(clenv, clw::MemType::ReadBuffer, sizeof(int), &nely);
+    clw::MemBuffer rminBuffer(clenv, clw::MemType::ReadBuffer, sizeof(float), &rmin);
+    clw::MemBuffer iHBuffer(clenv, clw::MemType::WriteBuffer, sizeof(float) * iH.height*iH.width);
+    clw::MemBuffer jHBuffer(clenv, clw::MemType::WriteBuffer, sizeof(float) * jH.height*jH.width);
+    clw::MemBuffer sHBuffer(clenv, clw::MemType::WriteBuffer, sizeof(float) * sH.height*sH.width);
+    err = kernel.setKernelArg(0, nelxBuffer);
+    assert(err == true);
+    err = kernel.setKernelArg(1, nelyBuffer);
+    assert(err == true);
+    err = kernel.setKernelArg(2, rminBuffer);
+    assert(err == true);
+    err = kernel.setKernelArg(3, iHBuffer);
+    assert(err == true);
+    err = kernel.setKernelArg(4, jHBuffer);
+    assert(err == true);
+    err = kernel.setKernelArg(5, sHBuffer);
+    assert(err == true);
+
+    size_t workSize[] = {nelx, nely};
+    err = queue.enqueueNDRK(kernel, workSize, 2);
+    assert(err == true);
+    queue.enqueueReadCommand(iHBuffer, sizeof(float) * iH.height*iH.width, iH.data);
+    assert(err == true);
+    queue.enqueueReadCommand(jHBuffer, sizeof(float) * jH.height*jH.width, jH.data);
+    assert(err == true);
+    queue.enqueueReadCommand(sHBuffer, sizeof(float) * sH.height*sH.width, sH.data);
+    assert(err == true);
 }

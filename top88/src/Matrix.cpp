@@ -143,7 +143,7 @@ void setdiff(std::vector<float> &a, const std::vector<float> &b) {
 
 void printSparse(const SparseMatrix &spmat) {
     std::cout << "Compressed Row Sparse (rows = " << spmat.height << ", cols = " << spmat.width
-              << ", nnz = " << spmat.values.size() << " [" << (spmat.values.size() / (spmat.height*spmat.width)) * 100
+              << ", nnz = " << spmat.values.size() << " [" << ((float)spmat.values.size() / (spmat.height*spmat.width)) * 100
               << "%])\n\n";
 
     for (size_t i = 0; i < spmat.height; i++) {
