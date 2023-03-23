@@ -42,7 +42,7 @@ int main(int argc, char *argv[]) {
     clw::Queue queue(clenv);
 
     int nelx = 10, nely = 5;
-    float rmin = 0.5f;
+    float rmin = 0.5f, volfrac = 0.5f;
 
     clBuffers["nu"] = new clw::MemBuffer(clenv, clw::MemType::ReadBuffer, sizeof(float), &nu);
     clBuffers["nelx"] = new clw::MemBuffer(clenv, clw::MemType::ReadBuffer, sizeof(int), &nelx);
@@ -115,6 +115,26 @@ int main(int argc, char *argv[]) {
     auto Hs = calculateHs(H);
     std::cout << "Hs =\n";
     printSparse(Hs);
+
+    // x = repmat(volfrac,nely,nelx);
+    auto x = repmat(volfrac, nely, nelx);
+    std::cout << "x =\n";
+    printMatrix(x);
+    std::cout << "\n";
+
+    // xPhys = x;
+    auto xPhys = x;
+
+
+    uint64_t loop = 0;
+    float change = 1.f;
+    while (change > 0.01f) {
+        loop++;
+        change = 0.f;
+    }
+    
+
+
 
     close(queue);
 

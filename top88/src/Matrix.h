@@ -58,12 +58,12 @@ struct SparseMatrix {
                 const uint32_t height, const uint32_t width) {
             this->height = height;
             this->width = width;
-    
+
             rowPtrs.resize(height + 1);
-    
+
             // temporary matrix that stores all values including 0 to make the algorithm easier
             float *mat = new float[width*height];
-    
+
             // initialize everything to 0
             for (size_t i = 0; i < width*height; i++) {
                 mat[i] = 0;
@@ -73,7 +73,7 @@ struct SparseMatrix {
                 // note the -1 which is to convert from the matlab base 1 indexing to the C++ base 0 indexing
                 mat[(rows[i]-1)*width + (columns[i]-1)] += values[i];
             }
-    
+
             size_t nonZeroID = 0;
             for (size_t r = 0; r < height; r++) {
                 rowPtrs[r] = nonZeroID; // storing the index of the first non-zero in the row
@@ -86,7 +86,7 @@ struct SparseMatrix {
                 }
             }
             rowPtrs[height] = nonZeroID;
-    
+
             delete[] mat;
         }
 };
@@ -103,3 +103,4 @@ void reshape(Matrix &mat, int numOfRows, int numOfColumns);
 Matrix zeros(const int height, const int width);
 Matrix ones(const int height, const int width);
 void setdiff(std::vector<float> &a, const std::vector<float> &b);
+Matrix repmat(float value, int numberOfRows, int numberOfColumns);

@@ -157,3 +157,16 @@ void printSparse(const SparseMatrix &spmat) {
     std::cout << "\n";
 }
 
+Matrix repmat(float value, int numberOfRows, int numberOfColumns) {
+    Matrix mat;
+    mat.height = numberOfRows;
+    mat.width = numberOfColumns;
+    mat.data = new float[numberOfColumns * numberOfRows];
+
+    for (size_t i = 0; i < numberOfColumns * numberOfRows; i++) {
+        mat.data[i] = value;
+    }
+
+    return mat;
+}
+
