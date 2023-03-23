@@ -33,6 +33,7 @@ float* calculateKE(const clw::Env &clenv, clw::Queue &queue);
 Matrix calculateEdofVec(const clw::Env &clenv, clw::Queue &queue, float *nodenrs, const int numOfRows, const int numOfColumns);
 Matrix calculateEdofMat(const clw::Env &clenv, clw::Queue &queue, int nely, const Matrix &edofVec);
 void crazyLoop(const clw::Env &clenv, clw::Queue &queue, Matrix &iH, Matrix &jH, Matrix &sH, size_t nelx, size_t nely, float rmin);
+SparseMatrix calculateHs(const SparseMatrix &H);
 
 void close(clw::Queue &queue);
 
@@ -111,8 +112,9 @@ int main(int argc, char *argv[]) {
 
     // H = sparse(iH,jH,sH);
     SparseMatrix H(iH, jH, sH);
-    std::cout << "H =\n";
-    printSparse(H);
+    auto Hs = calculateHs(H);
+    std::cout << "Hs =\n";
+    printSparse(Hs);
 
     close(queue);
 
@@ -146,30 +148,24 @@ float* calculateKE(const clw::Env &clenv, clw::Queue &queue) {
     delete[] b1; delete[] b2;
 
     // create buffers
-    // clw::MemBuffer nuBuffer(clenv, clw::MemType::ReadBuffer, sizeof(float), &nu);
     clw::MemBuffer aMatrixBuffer(clenv, clw::MemType::ReadBuffer, sizeof(float) * 8*8, a);
     clw::MemBuffer bMatrixBuffer(clenv, clw::MemType::ReadBuffer, sizeof(float) * 8*8, b);
-    // clw::MemBuffer resultMatrixBuffer(clenv, clw::MemType::WriteBuffer, sizeof(float) * 8*8);
-    // clBuffers["KE"] = clw::MemBuffer(clenv, clw::MemType::WriteBuffer, sizeof(float) * 8*8);
 
     // set up kernel
     bool err;
     clw::Kernel kernel(clenv, kernelFolder / "calculate_ke.cl", "calculateKE");
-    // err = kernel.setKernelArg(0, nuBuffer);
     err = kernel.setKernelArg(0, *clBuffers["nu"]);
     assert(err == true);
     err = kernel.setKernelArg(1, aMatrixBuffer);
     assert(err == true);
     err = kernel.setKernelArg(2, bMatrixBuffer);
     assert(err == true);
-    // err = kernel.setKernelArg(3, resultMatrixBuffer);
     err = kernel.setKernelArg(3, *clBuffers["KE"]);
     assert(err == true);
 
     size_t workSize = 16;
     err = queue.enqueueNDRK(kernel, &workSize);
     assert(err == true);
-    // err = queue.enqueueReadCommand(resultMatrixBuffer, sizeof(float) * 8*8, a);
     err = queue.enqueueReadCommand(*clBuffers["KE"], sizeof(float) * 8*8, a);
     assert(err == true);
 
@@ -231,17 +227,11 @@ Matrix calculateEdofMat(const clw::Env &clenv, clw::Queue &queue, int nely, cons
 
     bool err;
     clw::Kernel kernel(clenv, kernelFolder / "calculate_edofMat.cl", "calculateEdofMat");
-    // clw::MemBuffer nelyBuffer(clenv, clw::MemType::ReadBuffer, sizeof(int), &nely);
-    // clw::MemBuffer edofVecBuffer(clenv, clw::MemType::ReadBuffer, sizeof(float) * mat.height, edofVec.data);
-    // clw::MemBuffer outputBuffer(clenv, clw::MemType::WriteBuffer, sizeof(float) * dataSize);
     clBuffers["edofMat"] = new clw::MemBuffer(clenv, clw::MemType::RWBuffer, sizeof(float) * dataSize);
 
-    // err = kernel.setKernelArg(0, nelyBuffer);
     err = kernel.setKernelArg(0, *clBuffers["nely"]);
     assert(err == true);
-    // err = kernel.setKernelArg(1, edofVecBuffer);
     err = queue.enqueueWriteCommand(*clBuffers["edofVec"], sizeof(float) * mat.height, edofVec.data);
-    // queue.finish();
     assert(err == true);
     err = kernel.setKernelArg(1, *clBuffers["edofVec"]);
     assert(err == true);
@@ -251,7 +241,6 @@ Matrix calculateEdofMat(const clw::Env &clenv, clw::Queue &queue, int nely, cons
     size_t workSize = edofVec.height;
     err = queue.enqueueNDRK(kernel, &workSize);
     assert(err == true);
-    // err = queue.enqueueReadCommand(outputBuffer, sizeof(float) * dataSize, mat.data);
     err = queue.enqueueReadCommand(*clBuffers["edofMat"], sizeof(float) * dataSize, mat.data);
     assert(err == true);
 
@@ -273,19 +262,13 @@ void crazyLoop(const clw::Env &clenv, clw::Queue &queue, Matrix &iH, Matrix &jH,
 
     bool err;
     clw::Kernel kernel(clenv, filename, kernelName);
-    // clw::MemBuffer nelxBuffer(clenv, clw::MemType::ReadBuffer, sizeof(int), &nelx);
-    // clw::MemBuffer nelyBuffer(clenv, clw::MemType::ReadBuffer, sizeof(int), &nely);
-    // clw::MemBuffer rminBuffer(clenv, clw::MemType::ReadBuffer, sizeof(float), &rmin);
     clw::MemBuffer iHBuffer(clenv, clw::MemType::WriteBuffer, sizeof(float) * iH.height*iH.width);
     clw::MemBuffer jHBuffer(clenv, clw::MemType::WriteBuffer, sizeof(float) * jH.height*jH.width);
     clw::MemBuffer sHBuffer(clenv, clw::MemType::WriteBuffer, sizeof(float) * sH.height*sH.width);
-    // err = kernel.setKernelArg(0, nelxBuffer);
     err = kernel.setKernelArg(0, *clBuffers["nelx"]);
     assert(err == true);
-    // err = kernel.setKernelArg(1, nelyBuffer);
     err = kernel.setKernelArg(1, *clBuffers["nely"]);
     assert(err == true);
-    // err = kernel.setKernelArg(2, rminBuffer);
     err = kernel.setKernelArg(2, *clBuffers["rmin"]);
     assert(err == true);
     err = kernel.setKernelArg(3, iHBuffer);
@@ -304,4 +287,24 @@ void crazyLoop(const clw::Env &clenv, clw::Queue &queue, Matrix &iH, Matrix &jH,
     assert(err == true);
     queue.enqueueReadCommand(sHBuffer, sizeof(float) * sH.height*sH.width, sH.data);
     assert(err == true);
+}
+
+SparseMatrix calculateHs(const SparseMatrix &H) {
+    // I'm profiting from the fact that H is always a diagonal matrix
+    // so the sum of the rows is just the only non 0 value
+    SparseMatrix Hs;
+    Hs.width = H.width;
+    Hs.height = H.height;
+    Hs.values.resize(H.values.size());
+    Hs.columns.resize(H.columns.size());
+    Hs.rowPtrs.resize(H.rowPtrs.size());
+
+    for (size_t i = 0; i < H.columns.size(); i++) {
+        Hs.values[i] = H.values[i];
+        Hs.columns[i] = 0;
+        Hs.rowPtrs[i] = i;
+    }
+    Hs.rowPtrs[Hs.rowPtrs.size()-1] = Hs.rowPtrs[Hs.rowPtrs.size() - 2] + 1;
+
+    return Hs;
 }
