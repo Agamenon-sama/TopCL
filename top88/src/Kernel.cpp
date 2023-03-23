@@ -64,14 +64,15 @@ bool clw::Kernel::setKernelArg(int index, const MemBuffer &buffer) noexcept {
     // int err = clSetKernelArg(_kernel, index, sizeof(cl_mem), &buffer._buffer);
     int err = clSetKernelArg(_kernel, index, sizeof(cl_mem), &x);
     if (err  < 0) {
-        std::cerr << err << "\n";
+        std::cerr << errorStr(err) << "\n";
         return false;
     }
     return true;
 }
 
 bool clw::Kernel::setKernelArg(int index, size_t argSize, const void *argValue) noexcept {
-    if (clSetKernelArg(_kernel, index, argSize, argValue) < 0) {
+    auto err = clSetKernelArg(_kernel, index, argSize, argValue);
+    if (err < 0) {
         return false;
     }
     return true;

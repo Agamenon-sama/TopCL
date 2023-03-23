@@ -7,6 +7,8 @@
 #include <CL/cl.h>
 #endif
 
+#include <string>
+
 namespace clw {
 class Env {
     public:
@@ -21,4 +23,6 @@ class Env {
     cl_device_id _device;
     cl_context _context;
 };
+
+std::string errorStr(cl_int error);
 }

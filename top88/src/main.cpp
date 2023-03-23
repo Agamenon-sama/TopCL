@@ -2,6 +2,7 @@
 #include <vector>
 #include <cmath>
 #include <filesystem>
+#include <unordered_map>
 
 #include <assert.h>
 
@@ -13,6 +14,8 @@
 
 namespace fs = std::filesystem;
 const fs::path kernelFolder("../res/kernels");
+
+std::unordered_map<std::string, clw::MemBuffer*> clBuffers;
 
 // %% MATERIAL PROPERTIES
 float E0 = 1.f;
@@ -31,12 +34,20 @@ Matrix calculateEdofVec(const clw::Env &clenv, clw::Queue &queue, float *nodenrs
 Matrix calculateEdofMat(const clw::Env &clenv, clw::Queue &queue, int nely, const Matrix &edofVec);
 void crazyLoop(const clw::Env &clenv, clw::Queue &queue, Matrix &iH, Matrix &jH, Matrix &sH, size_t nelx, size_t nely, float rmin);
 
+void close(clw::Queue &queue);
+
 int main(int argc, char *argv[]) {
     clw::Env clenv;
     clw::Queue queue(clenv);
 
     int nelx = 10, nely = 5;
     float rmin = 0.5f;
+
+    clBuffers["nu"] = new clw::MemBuffer(clenv, clw::MemType::ReadBuffer, sizeof(float), &nu);
+    clBuffers["nelx"] = new clw::MemBuffer(clenv, clw::MemType::ReadBuffer, sizeof(int), &nelx);
+    clBuffers["nely"] = new clw::MemBuffer(clenv, clw::MemType::ReadBuffer, sizeof(int), &nely);
+    clBuffers["rmin"] = new clw::MemBuffer(clenv, clw::MemType::ReadBuffer, sizeof(float), &rmin);
+    clBuffers["KE"] = new clw::MemBuffer(clenv, clw::MemType::WriteBuffer, sizeof(float) * 8*8);
 
     std::cout << "KE =\n";
     float *KE = calculateKE(clenv, queue);
@@ -45,6 +56,9 @@ int main(int argc, char *argv[]) {
     float *nodenrs = reshape(makeVector(1, (1+nelx)*(1+nely)), 1+nely, 1+nelx);
     Matrix edofVec = calculateEdofVec(clenv, queue, nodenrs, nely, nelx);
     Matrix edofMat = calculateEdofMat(clenv, queue, nely, edofVec);
+    std::cout << "edofMat =\n";
+    printMatrix(edofMat);
+    std::cout << "\n";
     delete[] nodenrs;
 
     // F = sparse(2,1,-1,2*(nely+1)*(nelx+1),1);
@@ -100,8 +114,21 @@ int main(int argc, char *argv[]) {
     std::cout << "H =\n";
     printSparse(H);
 
+    close(queue);
 
     return 0;
+}
+
+void close(clw::Queue &queue) {
+    // start by waiting to finish all enqueued commands cause otherwise, segfault
+    auto err = queue.finish(); // should be unnecessary but better be safe than sorry
+    assert(err == CL_SUCCESS);
+
+    for (auto &buff : clBuffers) {
+        buff.second->~MemBuffer();
+        delete buff.second; // not sure if clBuffers.clear() does this, probably not
+    }
+    clBuffers.clear();
 }
 
 
@@ -119,27 +146,31 @@ float* calculateKE(const clw::Env &clenv, clw::Queue &queue) {
     delete[] b1; delete[] b2;
 
     // create buffers
-    clw::MemBuffer nuBuffer(clenv, clw::MemType::ReadBuffer, sizeof(float), &nu);
+    // clw::MemBuffer nuBuffer(clenv, clw::MemType::ReadBuffer, sizeof(float), &nu);
     clw::MemBuffer aMatrixBuffer(clenv, clw::MemType::ReadBuffer, sizeof(float) * 8*8, a);
     clw::MemBuffer bMatrixBuffer(clenv, clw::MemType::ReadBuffer, sizeof(float) * 8*8, b);
-    clw::MemBuffer resultMatrixBuffer(clenv, clw::MemType::WriteBuffer, sizeof(float) * 8*8);
+    // clw::MemBuffer resultMatrixBuffer(clenv, clw::MemType::WriteBuffer, sizeof(float) * 8*8);
+    // clBuffers["KE"] = clw::MemBuffer(clenv, clw::MemType::WriteBuffer, sizeof(float) * 8*8);
 
     // set up kernel
     bool err;
     clw::Kernel kernel(clenv, kernelFolder / "calculate_ke.cl", "calculateKE");
-    err = kernel.setKernelArg(0, nuBuffer);
+    // err = kernel.setKernelArg(0, nuBuffer);
+    err = kernel.setKernelArg(0, *clBuffers["nu"]);
     assert(err == true);
     err = kernel.setKernelArg(1, aMatrixBuffer);
     assert(err == true);
     err = kernel.setKernelArg(2, bMatrixBuffer);
     assert(err == true);
-    err = kernel.setKernelArg(3, resultMatrixBuffer);
+    // err = kernel.setKernelArg(3, resultMatrixBuffer);
+    err = kernel.setKernelArg(3, *clBuffers["KE"]);
     assert(err == true);
 
     size_t workSize = 16;
     err = queue.enqueueNDRK(kernel, &workSize);
     assert(err == true);
-    err = queue.enqueueReadCommand(resultMatrixBuffer, sizeof(float) * 8*8, a);
+    // err = queue.enqueueReadCommand(resultMatrixBuffer, sizeof(float) * 8*8, a);
+    err = queue.enqueueReadCommand(*clBuffers["KE"], sizeof(float) * 8*8, a);
     assert(err == true);
 
     printMatrix(a, 8, 8);
@@ -164,18 +195,22 @@ Matrix calculateEdofVec(const clw::Env &clenv, clw::Queue &queue, float *nodenrs
 
     // 2*nodenrs(1:end-1,1:end-1)+1
     clw::MemBuffer inputBuffer(clenv, clw::MemType::ReadBuffer, sizeof(float) * dataSize, result.data);
-    clw::MemBuffer outputBuffer(clenv, clw::MemType::WriteBuffer, sizeof(float) * dataSize);
+    // clw::MemBuffer outputBuffer(clenv, clw::MemType::WriteBuffer, sizeof(float) * dataSize);
+    clBuffers["edofVec"] = new clw::MemBuffer(clenv, clw::MemType::RWBuffer, sizeof(float) * dataSize);
+
     clw::Kernel kernel(clenv, kernelFolder / "calculate_edofVec.cl", "calculateEdofVec");
     int err;
     err = kernel.setKernelArg(0, inputBuffer);
     assert(err == true);
-    err = kernel.setKernelArg(1, outputBuffer);
+    // err = kernel.setKernelArg(1, outputBuffer);
+    err = kernel.setKernelArg(1, *clBuffers["edofVec"]);
     assert(err == true);
 
     size_t workSize = dataSize;
     err = queue.enqueueNDRK(kernel, &workSize);
     assert(err == true);
-    err = queue.enqueueReadCommand(outputBuffer, sizeof(float) * dataSize, result.data);
+    // err = queue.enqueueReadCommand(outputBuffer, sizeof(float) * dataSize, result.data);
+    err = queue.enqueueReadCommand(*clBuffers["edofVec"], sizeof(float) * dataSize, result.data);
     assert(err == true);
 
     printMatrix(result);
@@ -196,23 +231,29 @@ Matrix calculateEdofMat(const clw::Env &clenv, clw::Queue &queue, int nely, cons
 
     bool err;
     clw::Kernel kernel(clenv, kernelFolder / "calculate_edofMat.cl", "calculateEdofMat");
-    clw::MemBuffer nelyBuffer(clenv, clw::MemType::ReadBuffer, sizeof(int), &nely);
-    clw::MemBuffer edofVecBuffer(clenv, clw::MemType::ReadBuffer, sizeof(float) * mat.height, edofVec.data);
-    clw::MemBuffer outputBuffer(clenv, clw::MemType::WriteBuffer, sizeof(float) * dataSize);
-    err = kernel.setKernelArg(0, nelyBuffer);
+    // clw::MemBuffer nelyBuffer(clenv, clw::MemType::ReadBuffer, sizeof(int), &nely);
+    // clw::MemBuffer edofVecBuffer(clenv, clw::MemType::ReadBuffer, sizeof(float) * mat.height, edofVec.data);
+    // clw::MemBuffer outputBuffer(clenv, clw::MemType::WriteBuffer, sizeof(float) * dataSize);
+    clBuffers["edofMat"] = new clw::MemBuffer(clenv, clw::MemType::RWBuffer, sizeof(float) * dataSize);
+
+    // err = kernel.setKernelArg(0, nelyBuffer);
+    err = kernel.setKernelArg(0, *clBuffers["nely"]);
     assert(err == true);
-    err = kernel.setKernelArg(1, edofVecBuffer);
+    // err = kernel.setKernelArg(1, edofVecBuffer);
+    err = queue.enqueueWriteCommand(*clBuffers["edofVec"], sizeof(float) * mat.height, edofVec.data);
+    // queue.finish();
     assert(err == true);
-    err = kernel.setKernelArg(2, outputBuffer);
+    err = kernel.setKernelArg(1, *clBuffers["edofVec"]);
+    assert(err == true);
+    err = kernel.setKernelArg(2, *clBuffers["edofMat"]);
     assert(err == true);
 
     size_t workSize = edofVec.height;
     err = queue.enqueueNDRK(kernel, &workSize);
     assert(err == true);
-    err = queue.enqueueReadCommand(outputBuffer, sizeof(float) * dataSize, mat.data);
+    // err = queue.enqueueReadCommand(outputBuffer, sizeof(float) * dataSize, mat.data);
+    err = queue.enqueueReadCommand(*clBuffers["edofMat"], sizeof(float) * dataSize, mat.data);
     assert(err == true);
-
-    printMatrix(mat);
 
     return mat;
 }
@@ -232,17 +273,20 @@ void crazyLoop(const clw::Env &clenv, clw::Queue &queue, Matrix &iH, Matrix &jH,
 
     bool err;
     clw::Kernel kernel(clenv, filename, kernelName);
-    clw::MemBuffer nelxBuffer(clenv, clw::MemType::ReadBuffer, sizeof(int), &nelx);
-    clw::MemBuffer nelyBuffer(clenv, clw::MemType::ReadBuffer, sizeof(int), &nely);
-    clw::MemBuffer rminBuffer(clenv, clw::MemType::ReadBuffer, sizeof(float), &rmin);
+    // clw::MemBuffer nelxBuffer(clenv, clw::MemType::ReadBuffer, sizeof(int), &nelx);
+    // clw::MemBuffer nelyBuffer(clenv, clw::MemType::ReadBuffer, sizeof(int), &nely);
+    // clw::MemBuffer rminBuffer(clenv, clw::MemType::ReadBuffer, sizeof(float), &rmin);
     clw::MemBuffer iHBuffer(clenv, clw::MemType::WriteBuffer, sizeof(float) * iH.height*iH.width);
     clw::MemBuffer jHBuffer(clenv, clw::MemType::WriteBuffer, sizeof(float) * jH.height*jH.width);
     clw::MemBuffer sHBuffer(clenv, clw::MemType::WriteBuffer, sizeof(float) * sH.height*sH.width);
-    err = kernel.setKernelArg(0, nelxBuffer);
+    // err = kernel.setKernelArg(0, nelxBuffer);
+    err = kernel.setKernelArg(0, *clBuffers["nelx"]);
     assert(err == true);
-    err = kernel.setKernelArg(1, nelyBuffer);
+    // err = kernel.setKernelArg(1, nelyBuffer);
+    err = kernel.setKernelArg(1, *clBuffers["nely"]);
     assert(err == true);
-    err = kernel.setKernelArg(2, rminBuffer);
+    // err = kernel.setKernelArg(2, rminBuffer);
+    err = kernel.setKernelArg(2, *clBuffers["rmin"]);
     assert(err == true);
     err = kernel.setKernelArg(3, iHBuffer);
     assert(err == true);

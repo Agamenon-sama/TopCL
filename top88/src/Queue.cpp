@@ -39,7 +39,7 @@ bool clw::Queue::enqueueNDRK(
     return true;
 }
 
-bool clw::Queue::enqueueReadCommand(MemBuffer outputBuffer, size_t dataSize,
+bool clw::Queue::enqueueReadCommand(MemBuffer &outputBuffer, size_t dataSize,
     void *writeBuffer, size_t offset) noexcept
 {
     int err = clEnqueueReadBuffer(_queue, outputBuffer.getBuffer(), CL_TRUE, offset, dataSize,
@@ -61,3 +61,19 @@ bool clw::Queue::enqueueReadCommand(cl_mem outputBuffer, size_t dataSize,
     }
     return true;
 }
+
+bool clw::Queue::enqueueWriteCommand(MemBuffer &inputBuffer, size_t dataSize,
+    void *readBuffer, size_t offset) noexcept
+{
+    int err = clEnqueueWriteBuffer(_queue, inputBuffer.getBuffer(), CL_TRUE, offset, dataSize,
+                readBuffer, 0, nullptr, nullptr);
+    if (err < 0) {
+        return false;
+    }
+    return true;
+}
+
+cl_int clw::Queue::finish() noexcept {
+    return clFinish(_queue); // this could fail but I'm ignoring this because it's unlikely
+}
+

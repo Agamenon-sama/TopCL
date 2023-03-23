@@ -4,7 +4,7 @@
 
 clw::MemBuffer::MemBuffer(const Env &env, MemType flag, size_t size, void *data) {
     int err;
-    if (flag == MemType::ReadBuffer) {
+    if (flag == MemType::ReadBuffer || flag == MemType::RWBuffer) {
         _buffer = clCreateBuffer(env.getContext(), (cl_mem_flags)flag, size, data, &err);
     }
     else if (flag == MemType::WriteBuffer) {
@@ -15,7 +15,7 @@ clw::MemBuffer::MemBuffer(const Env &env, MemType flag, size_t size, void *data)
     }
 
     if (err < 0) {
-        throw std::runtime_error("Can't create OpenCL buffer (" + std::to_string(err) + ")");
+        throw std::runtime_error("Can't create OpenCL buffer: " + errorStr(err));
     }
 }
 
