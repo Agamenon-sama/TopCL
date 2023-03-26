@@ -6,7 +6,8 @@ namespace clw {
 enum class MemType {
     ReadBuffer = CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
     WriteBuffer = CL_MEM_WRITE_ONLY,
-    RWBuffer = CL_MEM_READ_WRITE
+    RWBuffer = CL_MEM_READ_WRITE,
+    RWCopyBuffer = CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR
 };
 
 class MemBuffer {

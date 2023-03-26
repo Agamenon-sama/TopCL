@@ -4,10 +4,10 @@
 
 clw::MemBuffer::MemBuffer(const Env &env, MemType flag, size_t size, void *data) {
     int err;
-    if (flag == MemType::ReadBuffer || flag == MemType::RWBuffer) {
+    if (flag == MemType::ReadBuffer || flag == MemType::RWCopyBuffer) {
         _buffer = clCreateBuffer(env.getContext(), (cl_mem_flags)flag, size, data, &err);
     }
-    else if (flag == MemType::WriteBuffer) {
+    else if (flag == MemType::WriteBuffer || flag == MemType::RWBuffer) {
         _buffer = clCreateBuffer(env.getContext(), (cl_mem_flags)flag, size, nullptr, &err);
     }
     else {

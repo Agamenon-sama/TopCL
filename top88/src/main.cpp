@@ -34,6 +34,7 @@ Matrix calculateEdofVec(const clw::Env &clenv, clw::Queue &queue, float *nodenrs
 Matrix calculateEdofMat(const clw::Env &clenv, clw::Queue &queue, int nely, const Matrix &edofVec);
 void crazyLoop(const clw::Env &clenv, clw::Queue &queue, Matrix &iH, Matrix &jH, Matrix &sH, size_t nelx, size_t nely, float rmin);
 SparseMatrix calculateHs(const SparseMatrix &H);
+Matrix calculateSK(const clw::Env &clenv, clw::Queue &queue, size_t nelx, size_t nely, Matrix &xPhys);
 
 void close(clw::Queue &queue);
 
@@ -41,13 +42,16 @@ int main(int argc, char *argv[]) {
     clw::Env clenv;
     clw::Queue queue(clenv);
 
-    int nelx = 10, nely = 5;
+    int nelx = 10, nely = 5, penal = 3;
     float rmin = 0.5f, volfrac = 0.5f;
 
     clBuffers["nu"] = new clw::MemBuffer(clenv, clw::MemType::ReadBuffer, sizeof(float), &nu);
     clBuffers["nelx"] = new clw::MemBuffer(clenv, clw::MemType::ReadBuffer, sizeof(int), &nelx);
     clBuffers["nely"] = new clw::MemBuffer(clenv, clw::MemType::ReadBuffer, sizeof(int), &nely);
+    clBuffers["penal"] = new clw::MemBuffer(clenv, clw::MemType::ReadBuffer, sizeof(int), &penal);
     clBuffers["rmin"] = new clw::MemBuffer(clenv, clw::MemType::ReadBuffer, sizeof(float), &rmin);
+    clBuffers["E0"] = new clw::MemBuffer(clenv, clw::MemType::ReadBuffer, sizeof(float), &E0);
+    clBuffers["Emin"] = new clw::MemBuffer(clenv, clw::MemType::ReadBuffer, sizeof(float), &Emin);
     clBuffers["KE"] = new clw::MemBuffer(clenv, clw::MemType::WriteBuffer, sizeof(float) * 8*8);
 
     std::cout << "KE =\n";
@@ -126,12 +130,18 @@ int main(int argc, char *argv[]) {
     auto xPhys = x;
 
 
-    uint64_t loop = 0;
-    float change = 1.f;
-    while (change > 0.01f) {
-        loop++;
-        change = 0.f;
-    }
+    // auto sK = calculateSK(clenv, queue, nelx, nely, xPhys);
+    // std::cout << "sK =\n";
+    // printMatrix(x);
+    // std::cout << "\n";
+    // auto K = SparseMatrix(iK, jK, sK);
+
+    // uint64_t loop = 0;
+    // float change = 1.f;
+    // while (change > 0.01f) {
+    //     loop++;
+    //     change = 0.f;
+    // }
     
 
 
@@ -328,3 +338,40 @@ SparseMatrix calculateHs(const SparseMatrix &H) {
 
     return Hs;
 }
+
+Matrix calculateSK(const clw::Env &clenv, clw::Queue &queue, size_t nelx, size_t nely, Matrix &xPhys) {
+    // todo: make sure not to call these two lines in the loop
+    clBuffers["xPhys"] = new clw::MemBuffer(clenv, clw::MemType::RWCopyBuffer, sizeof(float) * xPhys.height * xPhys.width, xPhys.data);
+    clBuffers["sK"] = new clw::MemBuffer(clenv, clw::MemType::WriteBuffer, sizeof(float) * nelx * nely);
+
+    Matrix sK;
+    sK.width = 1;
+    sK.height = 64*nelx*nely;
+    sK.data = new float[sK.height*sK.width];
+    assert(sK.data != nullptr);
+
+    bool err;
+    clw::Kernel kernel(clenv, kernelFolder / "calculate_sK.cl", "calculateSK");
+    err = kernel.setKernelArg(0, *clBuffers["KE"]);
+    assert(err == true);
+    err = kernel.setKernelArg(1, *clBuffers["xPhys"]);
+    err = queue.enqueueWriteCommand(*clBuffers["xPhys"], sizeof(float) * xPhys.height*xPhys.width, xPhys.data);
+    assert(err == true);
+    err = kernel.setKernelArg(2, *clBuffers["penal"]);
+    assert(err == true);
+    err = kernel.setKernelArg(3, *clBuffers["E0"]);
+    assert(err == true);
+    err = kernel.setKernelArg(4, *clBuffers["Emin"]);
+    assert(err == true);
+    err = kernel.setKernelArg(5, *clBuffers["sK"]);
+    assert(err == true);
+
+    size_t workSize[] = {nelx, nely};
+    err = queue.enqueueNDRK(kernel, workSize, 2);
+    assert(err == true);
+    queue.enqueueReadCommand(*clBuffers["sK"], sizeof(float) * sK.height*sK.width, sK.data);
+    assert(err == true);
+
+    return sK;
+}
+
