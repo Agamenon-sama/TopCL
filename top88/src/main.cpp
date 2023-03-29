@@ -35,6 +35,8 @@ Matrix calculateEdofMat(const clw::Env &clenv, clw::Queue &queue, int nely, cons
 void crazyLoop(const clw::Env &clenv, clw::Queue &queue, Matrix &iH, Matrix &jH, Matrix &sH, size_t nelx, size_t nely, float rmin);
 SparseMatrix calculateHs(const SparseMatrix &H);
 Matrix calculateSK(const clw::Env &clenv, clw::Queue &queue, size_t nelx, size_t nely, Matrix &xPhys);
+void filter1(const clw::Env &clenv, clw::Queue &queue, Matrix &dv);
+void filter2(const clw::Env &clenv, clw::Queue &queue, Matrix &dv);
 
 void close(clw::Queue &queue);
 
@@ -42,8 +44,10 @@ int main(int argc, char *argv[]) {
     clw::Env clenv;
     clw::Queue queue(clenv);
 
-    int nelx = 10, nely = 5, penal = 3;
+    int nelx = 10, nely = 5, penal = 3, ft = 2;
     float rmin = 0.5f, volfrac = 0.5f;
+
+    auto filter = ft == 1 ? filter1 : filter2;
 
     clBuffers["nu"] = new clw::MemBuffer(clenv, clw::MemType::ReadBuffer, sizeof(float), &nu);
     clBuffers["nelx"] = new clw::MemBuffer(clenv, clw::MemType::ReadBuffer, sizeof(int), &nelx);
@@ -73,8 +77,8 @@ int main(int argc, char *argv[]) {
 
     // U = zeros(2*(nely+1)*(nelx+1),1);
     Matrix U = zeros(2*(nely+1)*(nelx+1), 1);
-    std::cout << "U =\n";
-    printMatrix(U);
+    // std::cout << "U =\n";
+    // printMatrix(U);
 
     // given the nature of the input, the following union can be replaced with a simple insertion
     // fixeddofs = union([1:2:2*(nely+1)],[2*(nelx+1)*(nely+1)]);
@@ -119,6 +123,8 @@ int main(int argc, char *argv[]) {
     auto Hs = calculateHs(H);
     std::cout << "Hs =\n";
     printSparse(Hs);
+    clBuffers["H"] = new clw::MemBuffer(clenv, clw::MemType::ReadBuffer, sizeof(float) * H.values.size(), H.values.data());
+    clBuffers["Hs"] = new clw::MemBuffer(clenv, clw::MemType::ReadBuffer, sizeof(float) * Hs.values.size(), Hs.values.data());
 
     // x = repmat(volfrac,nely,nelx);
     auto x = repmat(volfrac, nely, nelx);
@@ -140,7 +146,13 @@ int main(int argc, char *argv[]) {
     // float change = 1.f;
     // while (change > 0.01f) {
     //     loop++;
-    //     change = 0.f;
+        // todo: since this is gonna run in a loop check if you neef to free the memory
+        // allocated by ones()
+        auto dv = ones(nely, nelx); 
+        filter(clenv, queue, dv);
+        std::cout << "dv =\n";
+        printMatrix(dv);
+        std::cout << "\n";
     // }
     
 
@@ -373,5 +385,26 @@ Matrix calculateSK(const clw::Env &clenv, clw::Queue &queue, size_t nelx, size_t
     assert(err == true);
 
     return sK;
+}
+
+void filter1(const clw::Env &clenv, clw::Queue &queue, Matrix &dv) {}
+
+void filter2(const clw::Env &clenv, clw::Queue &queue, Matrix &dv) {
+    clBuffers["dv"] = new clw::MemBuffer(clenv, clw::MemType::RWCopyBuffer, sizeof(float) * dv.height*dv.width, dv.data);
+
+    bool err;
+    clw::Kernel kernel(clenv, kernelFolder / "filter2.cl", "filter2");
+    err = kernel.setKernelArg(0, *clBuffers["H"]);
+    assert(err == true);
+    err = kernel.setKernelArg(1, *clBuffers["Hs"]);
+    assert(err == true);
+    err = kernel.setKernelArg(2, *clBuffers["dv"]);
+    assert(err == true);
+
+    size_t workSize[] = {dv.width, dv.height};
+    err = queue.enqueueNDRK(kernel, workSize, 2);
+    assert(err == true);
+    err = queue.enqueueReadCommand(*clBuffers["dv"], sizeof(float) * dv.height*dv.width, dv.data);
+    assert(err == true);
 }
 
