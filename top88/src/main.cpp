@@ -37,6 +37,7 @@ SparseMatrix calculateHs(const SparseMatrix &H);
 Matrix calculateSK(const clw::Env &clenv, clw::Queue &queue, size_t nelx, size_t nely, Matrix &xPhys);
 void filter1(const clw::Env &clenv, clw::Queue &queue, Matrix &dv);
 void filter2(const clw::Env &clenv, clw::Queue &queue, Matrix &dv);
+float xPhysSum(const clw::Env &clenv, clw::Queue &queue, Matrix &xPhys);
 
 void close(clw::Queue &queue);
 
@@ -136,7 +137,7 @@ int main(int argc, char *argv[]) {
     auto xPhys = x;
 
 
-    // auto sK = calculateSK(clenv, queue, nelx, nely, xPhys);
+    auto sK = calculateSK(clenv, queue, nelx, nely, xPhys);
     // std::cout << "sK =\n";
     // printMatrix(x);
     // std::cout << "\n";
@@ -153,6 +154,19 @@ int main(int argc, char *argv[]) {
         std::cout << "dv =\n";
         printMatrix(dv);
         std::cout << "\n";
+
+        float l1 = 0, l2 = 1e9, move = 0.2;
+        // while ((l2-l1)/(l1+l2) > 1e-3) {
+            float lmid = 0.5*(l2+l1);
+            // sum(xPhys(:)) > volfrac*nelx*nely
+            float s = xPhysSum(clenv, queue, xPhys);
+            std::cout << "s = " << s << "\n";
+            if (s > volfrac * nelx * nely) {
+                l1 = lmid;
+            } else {
+                l2 = lmid;
+            }
+        // }
     // }
     
 
@@ -357,6 +371,8 @@ Matrix calculateSK(const clw::Env &clenv, clw::Queue &queue, size_t nelx, size_t
     clBuffers["sK"] = new clw::MemBuffer(clenv, clw::MemType::WriteBuffer, sizeof(float) * nelx * nely);
 
     Matrix sK;
+    // FIXME: this segfaults for some reason
+    #if 0
     sK.width = 1;
     sK.height = 64*nelx*nely;
     sK.data = new float[sK.height*sK.width];
@@ -383,6 +399,7 @@ Matrix calculateSK(const clw::Env &clenv, clw::Queue &queue, size_t nelx, size_t
     assert(err == true);
     queue.enqueueReadCommand(*clBuffers["sK"], sizeof(float) * sK.height*sK.width, sK.data);
     assert(err == true);
+    #endif
 
     return sK;
 }
@@ -406,5 +423,41 @@ void filter2(const clw::Env &clenv, clw::Queue &queue, Matrix &dv) {
     assert(err == true);
     err = queue.enqueueReadCommand(*clBuffers["dv"], sizeof(float) * dv.height*dv.width, dv.data);
     assert(err == true);
+}
+
+float xPhysSum(const clw::Env &clenv, clw::Queue &queue, Matrix &xPhys) {
+    auto width = xPhys.width;
+    float sum = 0.f;
+    clw::MemBuffer widthBuffer(clenv, clw::MemType::ReadBuffer, sizeof(width), &width);
+    clw::MemBuffer partialSumsBuffer(clenv, clw::MemType::WriteBuffer, sizeof(float) * xPhys.height);
+    clw::MemBuffer sumBuffer(clenv, clw::MemType::WriteBuffer, sizeof(float));
+    float *parts = new float[xPhys.height];
+
+    bool err;
+    clw::Kernel kernel(clenv, kernelFolder / "xPhys_sum.cl", "xPhysSum");
+    err = kernel.setKernelArg(0, *clBuffers["xPhys"]);
+    assert(err == true);
+    err = kernel.setKernelArg(1, widthBuffer);
+    assert(err == true);
+    err = kernel.setKernelArg(2, partialSumsBuffer);
+    assert(err == true);
+    err = kernel.setKernelArg(3, sumBuffer);
+    assert(err == true);
+
+    size_t workSize = xPhys.height;
+    err = queue.enqueueNDRK(kernel, &workSize);
+    assert(err == true);
+    err = queue.enqueueReadCommand(sumBuffer, sizeof(float), &sum);
+    assert(err == true);
+    err = queue.enqueueReadCommand(partialSumsBuffer, sizeof(float) * xPhys.height, parts);
+    assert(err == true);
+
+    for (int i = 0; i < xPhys.height; i++) {
+        std::cout << parts[i] << "  ";
+    }
+    std::cout << "\n";
+
+    delete[] parts;
+    return sum;
 }
 
