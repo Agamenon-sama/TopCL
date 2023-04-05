@@ -171,7 +171,11 @@ void close(clw::Queue &queue) {
     assert(err == CL_SUCCESS);
 
     for (auto &buff : clBuffers) {
-        buff.second->~MemBuffer();
+        // I originally added this line to make sure I release the buffers
+        // before destroying the context in clenv but I guess I don't need it
+        // plus it was causing random segfaults
+        // Still gonna keep it commented just in case
+        // buff.second->~MemBuffer();
         delete buff.second; // not sure if clBuffers.clear() does this, probably not
     }
     clBuffers.clear();
