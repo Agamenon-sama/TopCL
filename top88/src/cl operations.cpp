@@ -222,6 +222,8 @@ void filter1(const clw::Env &clenv, clw::Queue &queue, Matrix &dv) {}
 
 void filter2(const clw::Env &clenv, clw::Queue &queue, Matrix &dv) {
     clBuffers["dv"] = new clw::MemBuffer(clenv, clw::MemType::RWCopyBuffer, sizeof(float) * dv.height*dv.width, dv.data);
+    // clBuffers["dv"] = new clw::MemBuffer(clenv, clw::MemType::RWBuffer, sizeof(float) * dv.height*dv.width);
+    // queue.enqueueWriteCommand(*clBuffers["dv"], sizeof(float) * dv.height*dv.width, dv.data);
 
     bool err;
     clw::Kernel kernel(clenv, kernelFolder / "filter2.cl", "filter2");
@@ -273,4 +275,35 @@ float xPhysSum(const clw::Env &clenv, clw::Queue &queue, Matrix &xPhys) {
 
     delete[] parts;
     return sum;
+}
+
+Matrix calculateDC(const clw::Env &clenv, clw::Queue &queue, Matrix &xPhys, Matrix &ce) {
+    clBuffers["dc"] = new clw::MemBuffer(clenv, clw::MemType::RWBuffer, sizeof(float) * xPhys.height * xPhys.width);
+    Matrix mat;
+    mat.width = xPhys.width;
+    mat.height = xPhys.height;
+    mat.data = new float[mat.width * mat.height];
+
+    bool err;
+    clw::Kernel kernel(clenv, kernelFolder / "calculate_dc.cl", "calculateDC");
+    kernel.setKernelArg(0, *clBuffers["xPhys"]);
+    assert(err == true);
+    kernel.setKernelArg(1, *clBuffers["ce"]);
+    assert(err == true);
+    kernel.setKernelArg(2, *clBuffers["E0"]);
+    assert(err == true);
+    kernel.setKernelArg(4, *clBuffers["Emin"]);
+    assert(err == true);
+    kernel.setKernelArg(3, *clBuffers["penal"]);
+    assert(err == true);
+    kernel.setKernelArg(5, *clBuffers["dc"]);
+    assert(err == true);
+
+    size_t workSize[] = {mat.width, mat.height};
+    err = queue.enqueueNDRK(kernel, workSize, 2);
+    assert(err == true);
+    err = queue.enqueueReadCommand(*clBuffers["dc"], sizeof(float) * mat.width*mat.height, mat.data);
+    assert(err == true);
+
+    return mat;
 }
