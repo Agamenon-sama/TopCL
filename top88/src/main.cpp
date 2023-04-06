@@ -27,6 +27,8 @@ Matrix calculateSK(const clw::Env &clenv, clw::Queue &queue, size_t nelx, size_t
 void filter1(const clw::Env &clenv, clw::Queue &queue, Matrix &dv);
 void filter2(const clw::Env &clenv, clw::Queue &queue, Matrix &dv);
 float xPhysSum(const clw::Env &clenv, clw::Queue &queue, Matrix &xPhys);
+Matrix calculateDC(const clw::Env &clenv, clw::Queue &queue, Matrix &xPhys, Matrix &ce);
+float calculateC(const clw::Env &clenv, clw::Queue &queue, Matrix &xPhys, Matrix &ce);
 
 void close(clw::Queue &queue);
 SparseMatrix calculateHs(const SparseMatrix &H);

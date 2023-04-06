@@ -307,3 +307,60 @@ Matrix calculateDC(const clw::Env &clenv, clw::Queue &queue, Matrix &xPhys, Matr
 
     return mat;
 }
+
+float calculateC(const clw::Env &clenv, clw::Queue &queue, Matrix &xPhys, Matrix &ce) {
+    clBuffers["c"] = new clw::MemBuffer(clenv, clw::MemType::RWBuffer, sizeof(float));
+
+    clw::MemBuffer outputBuffer(clenv, clw::MemType::WriteBuffer, sizeof(float) * xPhys.height * xPhys.width);
+    float *output = new float[xPhys.width*xPhys.height];
+    
+    bool err;
+    clw::Kernel kernel(clenv, kernelFolder / "calculate_c.cl", "calculateC");
+    kernel.setKernelArg(0, *clBuffers["xPhys"]);
+    assert(err == true);
+    kernel.setKernelArg(1, *clBuffers["ce"]);
+    assert(err == true);
+    kernel.setKernelArg(2, *clBuffers["E0"]);
+    assert(err == true);
+    kernel.setKernelArg(4, *clBuffers["Emin"]);
+    assert(err == true);
+    kernel.setKernelArg(3, *clBuffers["penal"]);
+    assert(err == true);
+    kernel.setKernelArg(5, outputBuffer);
+    assert(err == true);
+
+    size_t workSize[] = {xPhys.width, xPhys.height};
+    err = queue.enqueueNDRK(kernel, workSize, 2);
+    assert(err == true);
+    err = queue.enqueueReadCommand(outputBuffer, sizeof(float) * xPhys.width*xPhys.height, output);
+    assert(err == true);
+
+    // sum
+    auto width = xPhys.width;
+    float cVal = 0.f;
+    clw::MemBuffer widthBuffer(clenv, clw::MemType::ReadBuffer, sizeof(width), &width);
+    clw::MemBuffer partialSumsBuffer(clenv, clw::MemType::WriteBuffer, sizeof(float) * xPhys.height);
+    float *parts = new float[xPhys.height];
+    
+    clw::Kernel sumKernel(clenv, kernelFolder / "xPhys_sum.cl", "xPhysSum");
+    err = sumKernel.setKernelArg(0, outputBuffer);
+    assert(err == true);
+    err = sumKernel.setKernelArg(1, widthBuffer);
+    assert(err == true);
+    err = sumKernel.setKernelArg(2, partialSumsBuffer);
+    assert(err == true);
+    err = sumKernel.setKernelArg(3, *clBuffers["c"]);
+    assert(err == true);
+
+    err = queue.enqueueNDRK(sumKernel, &workSize[1]); // workSize[1] = xPhys.height
+    assert(err == true);
+    err = queue.enqueueReadCommand(*clBuffers["c"], sizeof(float), &cVal);
+    assert(err == true);
+    err = queue.enqueueReadCommand(partialSumsBuffer, sizeof(float) * xPhys.height, parts);
+    assert(err == true);
+
+    delete[] parts;
+    delete[] output;
+
+    return cVal;
+}
