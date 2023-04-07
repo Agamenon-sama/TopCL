@@ -22,9 +22,11 @@ add_executable(${PROJECT_NAME} ${SRC_FILES} ${HEADER_FILES})
 # External dependencies
 find_package(OpenCL REQUIRED)
 message(STATUS "found OpenCL")
+find_package(Threads REQUIRED)
+message(STATUS "Found a threading library")
 
 # Set libraries
-set(LIBS OpenCL)
+set(LIBS OpenCL Threads::Threads)
 
 # Linking libraries
 target_link_libraries(${PROJECT_NAME} ${LIBS})

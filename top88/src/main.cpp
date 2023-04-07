@@ -3,6 +3,7 @@
 #include <cmath>
 #include <filesystem>
 #include <unordered_map>
+#include <future>
 
 #include <assert.h>
 
@@ -66,15 +67,10 @@ int main(int argc, char *argv[]) {
     delete[] nodenrs;
 
     // iK = reshape(kron(edofMat,ones(8,1))',64*nelx*nely,1);
-    Matrix iK = calculateIK(edofMat);
-    Matrix jK = calculateJK(edofMat);
-    std::cout << "iK =\n";
-    printMatrix(iK);
-    std::cout << "\n";
-    std::cout << "jK =\n";
-    printMatrix(jK);
-    std::cout << "\n";
-    return 0;
+    auto iKFut = std::async(std::launch::async, calculateIK, edofMat);
+    // jK = reshape(kron(edofMat,ones(1,8))',64*nelx*nely,1);
+    auto jKFut = std::async(std::launch::async, calculateJK, edofMat);
+    
 
     // F = sparse(2,1,-1,2*(nely+1)*(nelx+1),1);
     SparseMatrix F({2}, {1}, {-1}, 2*(nely+1)*(nelx+1), 1);
@@ -138,6 +134,16 @@ int main(int argc, char *argv[]) {
 
     // xPhys = x;
     auto xPhys = x;
+
+    Matrix iK = iKFut.get();
+    Matrix jK = jKFut.get();
+    std::cout << "iK =\n";
+    printMatrix(iK);
+    std::cout << "\n";
+    std::cout << "jK =\n";
+    printMatrix(jK);
+    std::cout << "\n";
+    return 0;
 
 
     auto sK = calculateSK(clenv, queue, nelx, nely, xPhys);
