@@ -74,7 +74,7 @@ int main(int argc, char *argv[]) {
     std::cout << "jK =\n";
     printMatrix(jK);
     std::cout << "\n";
-    // return 0;
+    return 0;
 
     // F = sparse(2,1,-1,2*(nely+1)*(nelx+1),1);
     SparseMatrix F({2}, {1}, {-1}, 2*(nely+1)*(nelx+1), 1);
@@ -204,10 +204,16 @@ Matrix calculateIK(const Matrix &edofMat) {
 
     // we just need to repeat each column 8 times
     for (int i = 0, c = 0; i < edofMat.height; i++) {
-        for (int k = 0; k < 8; k++) {
-            for (int j = 0; j < edofMat.width; j++, c++) {
-                iK.data[c] = edofMat.data[i * edofMat.width + j];
-            }
+        for (int j = 0; j < 8; j++, c++) {
+            // Manually unrolled the loop
+            iK.data[c * 8 + 0] = edofMat.data[i * edofMat.width + 0];
+            iK.data[c * 8 + 1] = edofMat.data[i * edofMat.width + 1];
+            iK.data[c * 8 + 2] = edofMat.data[i * edofMat.width + 2];
+            iK.data[c * 8 + 3] = edofMat.data[i * edofMat.width + 3];
+            iK.data[c * 8 + 4] = edofMat.data[i * edofMat.width + 4];
+            iK.data[c * 8 + 5] = edofMat.data[i * edofMat.width + 5];
+            iK.data[c * 8 + 6] = edofMat.data[i * edofMat.width + 6];
+            iK.data[c * 8 + 7] = edofMat.data[i * edofMat.width + 7];
         }
     }
 
@@ -222,9 +228,15 @@ Matrix calculateJK(const Matrix &edofMat) {
 
     // we just need to repeat each value 8 times
     for(int i = 0; i < edofMat.height * edofMat.width; i++) {
-        for (int j = 0; j < 8; j++) {
-            jK.data[i * 8 + j] = edofMat.data[i];
-        }
+        // Manually unrolled the loop
+        jK.data[i * 8 + 0] = edofMat.data[i];
+        jK.data[i * 8 + 1] = edofMat.data[i];
+        jK.data[i * 8 + 2] = edofMat.data[i];
+        jK.data[i * 8 + 3] = edofMat.data[i];
+        jK.data[i * 8 + 4] = edofMat.data[i];
+        jK.data[i * 8 + 5] = edofMat.data[i];
+        jK.data[i * 8 + 6] = edofMat.data[i];
+        jK.data[i * 8 + 7] = edofMat.data[i];
     }
 
     return jK;
