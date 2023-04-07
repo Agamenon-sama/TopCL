@@ -22,6 +22,8 @@ float nu = 0.3f;
 float* calculateKE(const clw::Env &clenv, clw::Queue &queue);
 Matrix calculateEdofVec(const clw::Env &clenv, clw::Queue &queue, float *nodenrs, const int numOfRows, const int numOfColumns);
 Matrix calculateEdofMat(const clw::Env &clenv, clw::Queue &queue, int nely, const Matrix &edofVec);
+Matrix calculateIK(const Matrix &edofMat);
+Matrix calculateJK(const Matrix &edofMat);
 void crazyLoop(const clw::Env &clenv, clw::Queue &queue, Matrix &iH, Matrix &jH, Matrix &sH, size_t nelx, size_t nely, float rmin);
 Matrix calculateSK(const clw::Env &clenv, clw::Queue &queue, size_t nelx, size_t nely, Matrix &xPhys);
 void filter1(const clw::Env &clenv, clw::Queue &queue, Matrix &dv);
@@ -62,6 +64,17 @@ int main(int argc, char *argv[]) {
     printMatrix(edofMat);
     std::cout << "\n";
     delete[] nodenrs;
+
+    // iK = reshape(kron(edofMat,ones(8,1))',64*nelx*nely,1);
+    Matrix iK = calculateIK(edofMat);
+    Matrix jK = calculateJK(edofMat);
+    std::cout << "iK =\n";
+    printMatrix(iK);
+    std::cout << "\n";
+    std::cout << "jK =\n";
+    printMatrix(jK);
+    std::cout << "\n";
+    // return 0;
 
     // F = sparse(2,1,-1,2*(nely+1)*(nelx+1),1);
     SparseMatrix F({2}, {1}, {-1}, 2*(nely+1)*(nelx+1), 1);
@@ -183,6 +196,39 @@ void close(clw::Queue &queue) {
     clBuffers.clear();
 }
 
+Matrix calculateIK(const Matrix &edofMat) {
+    Matrix iK;
+    iK.width = 1;
+    iK.height = 8 * edofMat.height * edofMat.width;
+    iK.data = new float[iK.width * iK.height];
+
+    // we just need to repeat each column 8 times
+    for (int i = 0, c = 0; i < edofMat.height; i++) {
+        for (int k = 0; k < 8; k++) {
+            for (int j = 0; j < edofMat.width; j++, c++) {
+                iK.data[c] = edofMat.data[i * edofMat.width + j];
+            }
+        }
+    }
+
+    return iK;
+}
+
+Matrix calculateJK(const Matrix &edofMat) {
+    Matrix jK;
+    jK.width = 1;
+    jK.height = 8 * edofMat.height * edofMat.width;
+    jK.data = new float[jK.width * jK.height];
+
+    // we just need to repeat each value 8 times
+    for(int i = 0; i < edofMat.height * edofMat.width; i++) {
+        for (int j = 0; j < 8; j++) {
+            jK.data[i * 8 + j] = edofMat.data[i];
+        }
+    }
+
+    return jK;
+}
 
 SparseMatrix calculateHs(const SparseMatrix &H) {
     // I'm profiting from the fact that H is always a diagonal matrix
