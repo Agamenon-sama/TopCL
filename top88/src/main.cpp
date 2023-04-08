@@ -4,6 +4,7 @@
 #include <filesystem>
 #include <unordered_map>
 #include <future>
+#include <exception>
 
 #include <assert.h>
 
@@ -43,6 +44,25 @@ int main(int argc, char *argv[]) {
 
     int nelx = 10, nely = 5, penal = 3, ft = 2;
     float rmin = 0.5f, volfrac = 0.5f;
+
+    if (argc == 7) {
+        // Usage: ./top88 nelx nely volfrac penal rmin ft
+        try {
+            nelx = std::stoi(argv[1]);
+            nely = std::stoi(argv[2]);
+            volfrac = std::stof(argv[3]);
+            penal = std::stoi(argv[4]);
+            rmin = std::stof(argv[5]);
+            ft = std::stoi(argv[6]);
+        }
+        catch (std::exception &e) {
+            std::cerr << "Unvalid arguments " << e.what() << "\n";
+            std::cerr << "Usage:\n\t"
+                      << argv[0] << "\n\t"
+                      << argv[0] << " nelx nely volfrac penal rmin ft\n";
+            return 1;
+        }
+    }
 
     auto filter = ft == 1 ? filter1 : filter2;
 
