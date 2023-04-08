@@ -25,6 +25,7 @@ Matrix calculateEdofVec(const clw::Env &clenv, clw::Queue &queue, float *nodenrs
 Matrix calculateEdofMat(const clw::Env &clenv, clw::Queue &queue, int nely, const Matrix &edofVec);
 Matrix calculateIK(const Matrix &edofMat);
 Matrix calculateJK(const Matrix &edofMat);
+Matrix copyMatrix(const Matrix &mat);
 void crazyLoop(const clw::Env &clenv, clw::Queue &queue, Matrix &iH, Matrix &jH, Matrix &sH, size_t nelx, size_t nely, float rmin);
 Matrix calculateSK(const clw::Env &clenv, clw::Queue &queue, size_t nelx, size_t nely, Matrix &xPhys);
 void filter1(const clw::Env &clenv, clw::Queue &queue, Matrix &dv);
@@ -133,7 +134,7 @@ int main(int argc, char *argv[]) {
     std::cout << "\n";
 
     // xPhys = x;
-    auto xPhys = x;
+    auto xPhys = copyMatrix(x);
 
     Matrix iK = iKFut.get();
     Matrix jK = jKFut.get();
@@ -246,6 +247,19 @@ Matrix calculateJK(const Matrix &edofMat) {
     }
 
     return jK;
+}
+
+Matrix copyMatrix(const Matrix &mat) {
+    Matrix result;
+    result.height = mat.height;
+    result.width = mat.width;
+    result.data = new float[result.width * result.height];
+
+    for (int i = 0; i < result.width * result.height; i++) {
+        result.data[i] = mat.data[i];
+    }
+
+    return result;
 }
 
 SparseMatrix calculateHs(const SparseMatrix &H) {
