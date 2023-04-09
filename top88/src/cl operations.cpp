@@ -182,11 +182,9 @@ void crazyLoop(const clw::Env &clenv, clw::Queue &queue, Matrix &iH, Matrix &jH,
 Matrix calculateSK(const clw::Env &clenv, clw::Queue &queue, size_t nelx, size_t nely, Matrix &xPhys) {
     // todo: make sure not to call these two lines in the loop
     clBuffers["xPhys"] = new clw::MemBuffer(clenv, clw::MemType::RWCopyBuffer, sizeof(float) * xPhys.height * xPhys.width, xPhys.data);
-    clBuffers["sK"] = new clw::MemBuffer(clenv, clw::MemType::WriteBuffer, sizeof(float) * nelx * nely);
+    clBuffers["sK"] = new clw::MemBuffer(clenv, clw::MemType::WriteBuffer, sizeof(float) * nelx * nely * 64);
 
     Matrix sK;
-    // FIXME: this segfaults for some reason
-    #if 0
     sK.width = 1;
     sK.height = 64*nelx*nely;
     sK.data = new float[sK.height*sK.width];
@@ -197,7 +195,6 @@ Matrix calculateSK(const clw::Env &clenv, clw::Queue &queue, size_t nelx, size_t
     err = kernel.setKernelArg(0, *clBuffers["KE"]);
     assert(err == true);
     err = kernel.setKernelArg(1, *clBuffers["xPhys"]);
-    err = queue.enqueueWriteCommand(*clBuffers["xPhys"], sizeof(float) * xPhys.height*xPhys.width, xPhys.data);
     assert(err == true);
     err = kernel.setKernelArg(2, *clBuffers["penal"]);
     assert(err == true);
@@ -213,7 +210,6 @@ Matrix calculateSK(const clw::Env &clenv, clw::Queue &queue, size_t nelx, size_t
     assert(err == true);
     queue.enqueueReadCommand(*clBuffers["sK"], sizeof(float) * sK.height*sK.width, sK.data);
     assert(err == true);
-    #endif
 
     return sK;
 }

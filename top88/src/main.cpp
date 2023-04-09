@@ -164,13 +164,12 @@ int main(int argc, char *argv[]) {
     std::cout << "jK =\n";
     printMatrix(jK);
     std::cout << "\n";
-    return 0;
 
 
     auto sK = calculateSK(clenv, queue, nelx, nely, xPhys);
-    // std::cout << "sK =\n";
-    // printMatrix(x);
-    // std::cout << "\n";
+    std::cout << "sK =\n";
+    printMatrix(sK);
+    std::cout << "\n";
     // auto K = SparseMatrix(iK, jK, sK);
 
     // uint64_t loop = 0;
