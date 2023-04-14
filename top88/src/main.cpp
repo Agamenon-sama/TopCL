@@ -21,23 +21,15 @@ float E0 = 1.f;
 float Emin = 1e-9f;
 float nu = 0.3f;
 
-float* calculateKE(const clw::Env &clenv, clw::Queue &queue);
-Matrix calculateEdofVec(const clw::Env &clenv, clw::Queue &queue, float *nodenrs, const int numOfRows, const int numOfColumns);
-Matrix calculateEdofMat(const clw::Env &clenv, clw::Queue &queue, int nely, const Matrix &edofVec);
-Matrix calculateIK(const Matrix &edofMat);
-Matrix calculateJK(const Matrix &edofMat);
-Matrix copyMatrix(const Matrix &mat);
-void crazyLoop(const clw::Env &clenv, clw::Queue &queue, Matrix &iH, Matrix &jH, Matrix &sH, size_t nelx, size_t nely, float rmin);
-Matrix calculateSK(const clw::Env &clenv, clw::Queue &queue, size_t nelx, size_t nely, Matrix &xPhys);
-void filter1(const clw::Env &clenv, clw::Queue &queue, Matrix &dv);
-void filter2(const clw::Env &clenv, clw::Queue &queue, Matrix &dv);
-float xPhysSum(const clw::Env &clenv, clw::Queue &queue, Matrix &xPhys);
-Matrix calculateCE(const clw::Env &clenv, clw::Queue &queue, float *KE, Matrix &U, const Matrix &edofMat, int nelx, int nely);
-Matrix calculateDC(const clw::Env &clenv, clw::Queue &queue, Matrix &xPhys, Matrix &ce);
-float calculateC(const clw::Env &clenv, clw::Queue &queue, Matrix &xPhys, Matrix &ce);
+
+#include "cl operations.h"
+
 
 void close(clw::Queue &queue);
 SparseMatrix calculateHs(const SparseMatrix &H);
+Matrix calculateIK(const Matrix &edofMat);
+Matrix calculateJK(const Matrix &edofMat);
+Matrix copyMatrix(const Matrix &mat);
 
 int main(int argc, char *argv[]) {
     clw::Env clenv;
