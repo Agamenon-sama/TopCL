@@ -32,6 +32,7 @@ Matrix calculateSK(const clw::Env &clenv, clw::Queue &queue, size_t nelx, size_t
 void filter1(const clw::Env &clenv, clw::Queue &queue, Matrix &dv);
 void filter2(const clw::Env &clenv, clw::Queue &queue, Matrix &dv);
 float xPhysSum(const clw::Env &clenv, clw::Queue &queue, Matrix &xPhys);
+Matrix calculateCE(const clw::Env &clenv, clw::Queue &queue, float *KE, Matrix &U, const Matrix &edofMat, int nelx, int nely);
 Matrix calculateDC(const clw::Env &clenv, clw::Queue &queue, Matrix &xPhys, Matrix &ce);
 float calculateC(const clw::Env &clenv, clw::Queue &queue, Matrix &xPhys, Matrix &ce);
 
@@ -176,6 +177,10 @@ int main(int argc, char *argv[]) {
     // float change = 1.f;
     // while (change > 0.01f) {
     //     loop++;
+        auto ce = calculateCE(clenv, queue, KE, U, edofMat, nelx, nely);
+        std::cout << "ce =\n"; // todo: remove this and the printing inside reshape later
+        printMatrix(ce);
+        std::cout << "\n";
         // todo: since this is gonna run in a loop check if you neef to free the memory
         // allocated by ones()
         auto dv = ones(nely, nelx); 

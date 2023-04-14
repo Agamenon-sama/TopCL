@@ -273,6 +273,67 @@ float xPhysSum(const clw::Env &clenv, clw::Queue &queue, Matrix &xPhys) {
     return sum;
 }
 
+Matrix calculateCE(const clw::Env &clenv, clw::Queue &queue, float *KE, Matrix &U, const Matrix &edofMat, int nelx, int nely) {
+    // U(edofMat)
+    Matrix uEdofMat;
+    uEdofMat.height = edofMat.height;
+    uEdofMat.width = edofMat.width;
+    size_t uSize = uEdofMat.width*uEdofMat.height;
+    uEdofMat.data = new float[uSize];
+
+    for (int i = 0; i < uSize; i++) {
+        uEdofMat.data[i] = U.data[(int)edofMat.data[i] - 1];
+    }
+
+    auto uBuffer = clw::MemBuffer(clenv, clw::MemType::ReadBuffer, uSize, uEdofMat.data);
+    auto uOutputBuffer = clw::MemBuffer(clenv, clw::MemType::RWBuffer, uSize);
+
+    // (U(edofMat)*KE).*U(edofMat)
+    bool err;
+    clw::Kernel calcKernel(clenv, kernelFolder / "calculate_ce.cl", "caulculateCE");
+    err = calcKernel.setKernelArg(0, uBuffer);
+    assert(err == true);
+    err = calcKernel.setKernelArg(1, *clBuffers["KE"]);
+    assert(err == true);
+    err = calcKernel.setKernelArg(2, uOutputBuffer);
+    assert(err == true);
+
+    float *temp = new float[uSize];
+
+    size_t workSize[] = {uEdofMat.width, uEdofMat.height};
+    err = queue.enqueueNDRK(calcKernel, workSize, 2);
+    assert(err == true);
+    err = queue.enqueueReadCommand(uOutputBuffer, uSize, temp);
+    assert(err == true);
+
+    delete[] temp;
+
+    // sum((U(edofMat)*KE).*U(edofMat),2)
+    Matrix ce;
+    ce.width = 1;
+    ce.height = nelx*nely;
+    ce.data = new float[ce.height*ce.width];
+    auto sumBuffer = clw::MemBuffer(clenv, clw::MemType::WriteBuffer, uEdofMat.height);
+
+    clw::Kernel sumKernel(clenv, kernelFolder / "row_sum.cl", "rowSum");
+    err = sumKernel.setKernelArg(0, uOutputBuffer);
+    assert(err == true);
+    err = sumKernel.setKernelArg(1, sumBuffer);
+    assert(err == true);
+
+    // workSize[1] == uEdofMat.height
+    err = queue.enqueueNDRK(calcKernel, &workSize[1]);
+    assert(err == true);
+    err = queue.enqueueReadCommand(sumBuffer, ce.height*ce.width, ce.data);
+
+    reshape(ce, nely, nelx);
+
+
+    delete[] uEdofMat.data;
+
+    return ce;
+}
+
 Matrix calculateDC(const clw::Env &clenv, clw::Queue &queue, Matrix &xPhys, Matrix &ce) {
     clBuffers["dc"] = new clw::MemBuffer(clenv, clw::MemType::RWBuffer, sizeof(float) * xPhys.height * xPhys.width);
     Matrix mat;
