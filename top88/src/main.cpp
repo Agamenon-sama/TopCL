@@ -204,6 +204,8 @@ int main(int argc, char *argv[]) {
                 l2 = lmid;
             }
         // }
+        float change = calculateChange(clenv, queue, x);
+        std::cout << "change = " << change << "\n";
     // }
     
 

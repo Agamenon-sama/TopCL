@@ -454,3 +454,34 @@ Matrix calculateXNew(const clw::Env &clenv, clw::Queue &queue, const Matrix &dc)
 
     return xnew;
 }
+
+float calculateChange(const clw::Env &clenv, clw::Queue &queue, const Matrix &x) {
+    clw::MemBuffer changes(clenv, clw::MemType::WriteBuffer, x.width*x.height);
+    float *temp = new float[x.width*x.height];
+
+    bool err;
+    clw::Kernel kernel(clenv, kernelFolder / "calculate_change.cl", "calculateChange");
+    err = kernel.setKernelArg(0, *clBuffers["x"]);
+    assert(err == true);
+    err = kernel.setKernelArg(1, *clBuffers["xnew"]);
+    assert(err == true);
+    err = kernel.setKernelArg(2, changes);
+    assert(err == true);
+
+    size_t workSize[] = {x.width, x.height};
+    err = queue.enqueueNDRK(kernel, workSize, 2);
+    assert(err == true);
+    err = queue.enqueueReadCommand(changes, x.width*x.height, temp);
+    assert(err == true);
+
+    float max = temp[0];
+    for (int i = 1; i < x.width*x.height; i++) {
+        if (temp[i] > max) {
+            max = temp[i];
+        }
+    }
+
+    delete[] temp;
+
+    return max;
+}

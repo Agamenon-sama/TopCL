@@ -18,3 +18,4 @@ Matrix calculateCE(const clw::Env &clenv, clw::Queue &queue, float *KE, Matrix &
 Matrix calculateDC(const clw::Env &clenv, clw::Queue &queue, Matrix &xPhys, Matrix &ce);
 float calculateC(const clw::Env &clenv, clw::Queue &queue, Matrix &xPhys, Matrix &ce);
 Matrix calculateXNew(const clw::Env &clenv, clw::Queue &queue, const Matrix &dc);
+float calculateChange(const clw::Env &clenv, clw::Queue &queue, const Matrix &x);
