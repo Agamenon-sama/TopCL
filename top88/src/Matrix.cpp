@@ -58,8 +58,6 @@ float* reshape(const std::vector<float> &vec, int numOfRows, int numOfColumns) {
         }
     }
 
-    printMatrix(result, numOfColumns, numOfRows);
-
     return result; // caller must delete
 }
 
@@ -73,9 +71,6 @@ void reshape(Matrix &mat, int numOfRows, int numOfColumns) {
     }
     delete[] mat.data;
     mat.data = result;
-
-    printMatrix(mat);
-    std::cout << "\n";
 }
 
 
