@@ -91,6 +91,24 @@ struct SparseMatrix {
         }
 };
 
+struct CooSparseMatrix {
+    std::vector<float> values;
+    std::vector<size_t> rows;
+    std::vector<size_t> columns;
+
+    CooSparseMatrix(const Matrix &iMat, const Matrix &jMat, const Matrix &kMat) {
+        for (int i = 0; i < iMat.height*iMat.width; i++) {
+            rows.emplace_back(iMat.data[i]);
+        }
+        for (int i = 0; i < jMat.height*jMat.width; i++) {
+            columns.emplace_back(jMat.data[i]);
+        }
+        for (int i = 0; i < kMat.height*kMat.width; i++) {
+            values.emplace_back(kMat.data[i]);
+        }
+    }
+};
+
 
 void printMatrix(const Matrix &mat);
 void printMatrix(const float *vec, const int width, const int height);
