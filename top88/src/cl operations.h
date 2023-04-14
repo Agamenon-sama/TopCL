@@ -17,3 +17,4 @@ float xPhysSum(const clw::Env &clenv, clw::Queue &queue, Matrix &xPhys);
 Matrix calculateCE(const clw::Env &clenv, clw::Queue &queue, float *KE, Matrix &U, const Matrix &edofMat, int nelx, int nely);
 Matrix calculateDC(const clw::Env &clenv, clw::Queue &queue, Matrix &xPhys, Matrix &ce);
 float calculateC(const clw::Env &clenv, clw::Queue &queue, Matrix &xPhys, Matrix &ce);
+Matrix calculateXNew(const clw::Env &clenv, clw::Queue &queue, const Matrix &dc);

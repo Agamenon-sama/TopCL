@@ -313,18 +313,18 @@ Matrix calculateCE(const clw::Env &clenv, clw::Queue &queue, float *KE, Matrix &
     ce.width = 1;
     ce.height = nelx*nely;
     ce.data = new float[ce.height*ce.width];
-    auto sumBuffer = clw::MemBuffer(clenv, clw::MemType::WriteBuffer, uEdofMat.height);
+    clBuffers["ce"] = new clw::MemBuffer(clenv, clw::MemType::WriteBuffer, uEdofMat.height);
 
     clw::Kernel sumKernel(clenv, kernelFolder / "row_sum.cl", "rowSum");
     err = sumKernel.setKernelArg(0, uOutputBuffer);
     assert(err == true);
-    err = sumKernel.setKernelArg(1, sumBuffer);
+    err = sumKernel.setKernelArg(1, *clBuffers["ce"]);
     assert(err == true);
 
     // workSize[1] == uEdofMat.height
     err = queue.enqueueNDRK(calcKernel, &workSize[1]);
     assert(err == true);
-    err = queue.enqueueReadCommand(sumBuffer, ce.height*ce.width, ce.data);
+    err = queue.enqueueReadCommand(*clBuffers["ce"], ce.height*ce.width, ce.data);
 
     reshape(ce, nely, nelx);
 
@@ -343,17 +343,17 @@ Matrix calculateDC(const clw::Env &clenv, clw::Queue &queue, Matrix &xPhys, Matr
 
     bool err;
     clw::Kernel kernel(clenv, kernelFolder / "calculate_dc.cl", "calculateDC");
-    kernel.setKernelArg(0, *clBuffers["xPhys"]);
+    err = kernel.setKernelArg(0, *clBuffers["xPhys"]);
     assert(err == true);
-    kernel.setKernelArg(1, *clBuffers["ce"]);
+    err = kernel.setKernelArg(1, *clBuffers["ce"]);
     assert(err == true);
-    kernel.setKernelArg(2, *clBuffers["E0"]);
+    err = kernel.setKernelArg(2, *clBuffers["E0"]);
     assert(err == true);
-    kernel.setKernelArg(4, *clBuffers["Emin"]);
+    err = kernel.setKernelArg(4, *clBuffers["Emin"]);
     assert(err == true);
-    kernel.setKernelArg(3, *clBuffers["penal"]);
+    err = kernel.setKernelArg(3, *clBuffers["penal"]);
     assert(err == true);
-    kernel.setKernelArg(5, *clBuffers["dc"]);
+    err = kernel.setKernelArg(5, *clBuffers["dc"]);
     assert(err == true);
 
     size_t workSize[] = {mat.width, mat.height};
@@ -373,17 +373,17 @@ float calculateC(const clw::Env &clenv, clw::Queue &queue, Matrix &xPhys, Matrix
     
     bool err;
     clw::Kernel kernel(clenv, kernelFolder / "calculate_c.cl", "calculateC");
-    kernel.setKernelArg(0, *clBuffers["xPhys"]);
+    err = kernel.setKernelArg(0, *clBuffers["xPhys"]);
     assert(err == true);
-    kernel.setKernelArg(1, *clBuffers["ce"]);
+    err = kernel.setKernelArg(1, *clBuffers["ce"]);
     assert(err == true);
-    kernel.setKernelArg(2, *clBuffers["E0"]);
+    err = kernel.setKernelArg(2, *clBuffers["E0"]);
     assert(err == true);
-    kernel.setKernelArg(4, *clBuffers["Emin"]);
+    err = kernel.setKernelArg(4, *clBuffers["Emin"]);
     assert(err == true);
-    kernel.setKernelArg(3, *clBuffers["penal"]);
+    err = kernel.setKernelArg(3, *clBuffers["penal"]);
     assert(err == true);
-    kernel.setKernelArg(5, outputBuffer);
+    err = kernel.setKernelArg(5, outputBuffer);
     assert(err == true);
 
     size_t workSize[] = {xPhys.width, xPhys.height};
@@ -420,4 +420,37 @@ float calculateC(const clw::Env &clenv, clw::Queue &queue, Matrix &xPhys, Matrix
     delete[] output;
 
     return cVal;
+}
+
+Matrix calculateXNew(const clw::Env &clenv, clw::Queue &queue, const Matrix &dc) {
+    Matrix xnew;
+    xnew.width = dc.width;
+    xnew.height = dc.height;
+    size_t dataSize = xnew.width * xnew.height;
+    xnew.data = new float[dataSize];
+
+    clBuffers["xnew"] = new clw::MemBuffer(clenv, clw::MemType::RWBuffer, dataSize);
+
+    bool err;
+    clw::Kernel kernel(clenv, kernelFolder / "calculate_xnew.cl", "calculateXNew");
+    err = kernel.setKernelArg(0, *clBuffers["x"]);
+    assert(err == true);
+    err = kernel.setKernelArg(1, *clBuffers["dc"]);
+    assert(err == true);
+    err = kernel.setKernelArg(2, *clBuffers["dv"]);
+    assert(err == true);
+    err = kernel.setKernelArg(3, *clBuffers["lmid"]);
+    assert(err == true);
+    err = kernel.setKernelArg(4, *clBuffers["move"]);
+    assert(err == true);
+    err = kernel.setKernelArg(5, *clBuffers["xnew"]);
+    assert(err == true);
+
+    size_t workSize[] = {xnew.width, xnew.height};
+    err = queue.enqueueNDRK(kernel, workSize, 2);
+    assert(err == true);
+    err = queue.enqueueReadCommand(*clBuffers["xnew"], dataSize, xnew.data);
+    assert(err == true);
+
+    return xnew;
 }

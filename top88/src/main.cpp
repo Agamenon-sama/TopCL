@@ -142,6 +142,7 @@ int main(int argc, char *argv[]) {
 
     // x = repmat(volfrac,nely,nelx);
     auto x = repmat(volfrac, nely, nelx);
+    clBuffers["x"] = new clw::MemBuffer(clenv, clw::MemType::RWCopyBuffer, sizeof(float) * x.height*x.width, x.data);
     std::cout << "x =\n";
     printMatrix(x);
     std::cout << "\n";
@@ -170,8 +171,12 @@ int main(int argc, char *argv[]) {
     // while (change > 0.01f) {
     //     loop++;
         auto ce = calculateCE(clenv, queue, KE, U, edofMat, nelx, nely);
-        std::cout << "ce =\n"; // todo: remove this and the printing inside reshape later
+        std::cout << "ce =\n";
         printMatrix(ce);
+        std::cout << "\n";
+        auto dc = calculateDC(clenv, queue, xPhys, ce);
+        std::cout << "dc =\n";
+        printMatrix(dc);
         std::cout << "\n";
         // todo: since this is gonna run in a loop check if you neef to free the memory
         // allocated by ones()
@@ -182,8 +187,14 @@ int main(int argc, char *argv[]) {
         std::cout << "\n";
 
         float l1 = 0, l2 = 1e9, move = 0.2;
+        clBuffers["move"] = new clw::MemBuffer(clenv, clw::MemType::RWCopyBuffer, sizeof(float), &move);
         // while ((l2-l1)/(l1+l2) > 1e-3) {
             float lmid = 0.5*(l2+l1);
+            clBuffers["lmid"] = new clw::MemBuffer(clenv, clw::MemType::RWCopyBuffer, sizeof(float), &move);
+            auto xnew = calculateXNew(clenv, queue, dc);
+            std::cout << "xnew =\n";
+            printMatrix(xnew);
+            std::cout << "\n";
             // sum(xPhys(:)) > volfrac*nelx*nely
             float s = xPhysSum(clenv, queue, xPhys);
             std::cout << "s = " << s << "\n";
